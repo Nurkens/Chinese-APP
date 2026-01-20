@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Chinese App</string>
+    <string name="title_activity_main">Chinese App</string>
+    <string name="package_name">com.chineseapp.nurken</string>
+    <string name="custom_url_scheme">com.chineseapp.nurken</string>
+</resources>

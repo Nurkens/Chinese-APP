@@ -7,7 +7,7 @@ const Home: React.FC = () => {
 
   useEffect(() => {
     
-    fetch('http://localhost:3000')
+    fetch('http://192.0.2.2:3000')
       .then(res => res.text()) 
       .then(data => {
         setMessage(data); 
