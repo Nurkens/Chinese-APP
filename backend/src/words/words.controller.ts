@@ -1,20 +1,27 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Controller, Get, Post, Param } from '@nestjs/common';
 import { WordsService } from './words.service';
-import { CreateWordDto } from './dto/create-word.dto';
-import { ApiTags } from '@nestjs/swagger';
 
-@ApiTags('words') 
 @Controller('words')
 export class WordsController {
   constructor(private readonly wordsService: WordsService) {}
 
-  @Post()
-  create(@Body() createWordDto: CreateWordDto) {
-    return this.wordsService.create(createWordDto);
+  @Get('today')
+  async getTodayCharacter() {
+    return this.wordsService.getTodayCharacter();
   }
 
-  @Get()
-  findAll() {
-    return this.wordsService.findAll();
+  @Get('hsk/:level')
+  async getWordsByHskLevel(@Param('level') level: string) {
+    return this.wordsService.getWordsByHskLevel(parseInt(level));
+  }
+
+  @Get(':id')
+  async getWordById(@Param('id') id: string) {
+    return this.wordsService.getWordById(id);
+  }
+
+  @Post('seed')
+  async seedWords() {
+    return this.wordsService.seedInitialWords();
   }
 }

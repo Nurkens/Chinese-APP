@@ -1,7 +1,9 @@
-import { Redirect, Route } from 'react-router-dom';
+import { Route, Navigate } from 'react-router-dom'; // Заменили Redirect на Navigate
 import { IonApp, IonRouterOutlet, setupIonicReact } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
-import Home from './pages/Home';
+import WelcomeScreen from './components/WelcomeScreen';
+import Dashboard from './components/Dashboard';
+import { ProgressProvider } from './contexts/ProgressContext';
 
 /* Core CSS required for Ionic components to work properly */
 import '@ionic/react/css/core.css';
@@ -19,15 +21,6 @@ import '@ionic/react/css/text-transformation.css';
 import '@ionic/react/css/flex-utils.css';
 import '@ionic/react/css/display.css';
 
-/**
- * Ionic Dark Mode
- * -----------------------------------------------------
- * For more info, please see:
- * https://ionicframework.com/docs/theming/dark-mode
- */
-
-/* import '@ionic/react/css/palettes/dark.always.css'; */
-/* import '@ionic/react/css/palettes/dark.class.css'; */
 import '@ionic/react/css/palettes/dark.system.css';
 
 /* Theme variables */
@@ -37,16 +30,19 @@ setupIonicReact();
 
 const App: React.FC = () => (
   <IonApp>
-    <IonReactRouter>
-      <IonRouterOutlet>
-        <Route exact path="/home">
-          <Home />
-        </Route>
-        <Route exact path="/">
-          <Redirect to="/home" />
-        </Route>
-      </IonRouterOutlet>
-    </IonReactRouter>
+    <ProgressProvider>
+      <IonReactRouter>
+        <IonRouterOutlet>
+          {/* В React Router v6 компоненты передаются через пропс element */}
+          <Route path="/welcome" element={<WelcomeScreen />} />
+
+          <Route path="/dashboard" element={<Dashboard />} />
+
+          {/* Вместо Redirect используем Navigate */}
+          <Route path="/" element={<Navigate to="/welcome" replace />} />
+        </IonRouterOutlet>
+      </IonReactRouter>
+    </ProgressProvider>
   </IonApp>
 );
 
