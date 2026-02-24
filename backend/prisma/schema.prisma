@@ -15,6 +15,7 @@ model User {
   email     String?  @unique
   password  String?
   username  String   @unique
+  tag       String   @unique // format: "username#1234"
   isGuest   Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -22,8 +23,22 @@ model User {
   // Relations
   progress       UserProgress?
   learnedWords   UserWord[]
+  friends        Friendship[] @relation("UserFriends")
+  friendOf       Friendship[] @relation("FriendOf")
 
   @@map("users")
+}
+
+model Friendship {
+  id        String   @id @default(uuid())
+  userId    String
+  friendId  String
+  user      User     @relation("UserFriends", fields: [userId], references: [id], onDelete: Cascade)
+  friend    User     @relation("FriendOf", fields: [friendId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, friendId])
+  @@map("friendships")
 }
 
 model UserProgress {

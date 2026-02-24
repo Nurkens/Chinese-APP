@@ -1,6 +1,15 @@
 import axios from 'axios';
+import { Capacitor } from '@capacitor/core';
 
-const API_BASE_URL = 'http://localhost:3000';
+
+const getApiUrl = () => {
+  if (Capacitor.isNativePlatform()) {
+    return 'http://10.0.2.2:3000';
+  }
+  return 'http://localhost:3000';
+};
+
+const API_BASE_URL = getApiUrl();
 
 // Create axios instance with base configuration
 const api = axios.create({
@@ -33,6 +42,15 @@ export const authAPI = {
 
   guestLogin: async () => {
     const response = await api.post('/auth/guest');
+    return response.data;
+  },
+
+  getGoogleAuthUrl: () => {
+    return `${API_BASE_URL}/auth/google`;
+  },
+
+  googleLoginWithToken: async (credential: string) => {
+    const response = await api.post('/auth/google/token', { credential });
     return response.data;
   },
 };
@@ -112,6 +130,39 @@ export const srsAPI = {
 
   getReviewSession: async (newLimit: number = 5, reviewLimit: number = 15) => {
     const response = await api.get('/srs/session', { params: { newLimit, reviewLimit } });
+    return response.data;
+  },
+};
+
+// Friends API
+export const friendsAPI = {
+  getFriends: async () => {
+    const response = await api.get('/friends');
+    return response.data;
+  },
+
+  addFriend: async (tag: string) => {
+    const response = await api.post('/friends/add', { tag });
+    return response.data;
+  },
+
+  removeFriend: async (friendId: string) => {
+    const response = await api.delete(`/friends/${friendId}`);
+    return response.data;
+  },
+
+  searchByTag: async (tag: string) => {
+    const response = await api.get('/friends/search', { params: { tag } });
+    return response.data;
+  },
+
+  getGlobalLeaderboard: async () => {
+    const response = await api.get('/leaderboard/global');
+    return response.data;
+  },
+
+  getFriendsLeaderboard: async () => {
+    const response = await api.get('/leaderboard/friends');
     return response.data;
   },
 };

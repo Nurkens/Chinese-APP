@@ -114,7 +114,6 @@ const DamageNumber: React.FC<DamageNumberProps> = ({ damage, onComplete }) => {
             textShadow: config.shadow,
             pointerEvents: 'none',
             zIndex: 100,
-            textStroke: '2px #000',
             WebkitTextStroke: '2px #000',
             fontFamily: 'Impact, sans-serif',
           }}

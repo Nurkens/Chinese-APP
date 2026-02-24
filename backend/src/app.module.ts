@@ -10,6 +10,7 @@ import { GoalsModule } from './goals/goals.module';
 import { TutorModule } from './tutor/tutor.module';
 import { GachaModule } from './gacha/gacha.module';
 import { SRSModule } from './srs/srs.module';
+import { FriendsModule } from './friends/friends.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { SRSModule } from './srs/srs.module';
     TutorModule,
     GachaModule,
     SRSModule,
+    FriendsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -88,12 +88,6 @@ const Profile: React.FC = () => {
                 <span>Member since {new Date().toLocaleDateString()}</span>
               </div>
 
-              {progress?.lastStudyDate && (
-                <div className="flex items-center gap-3 text-stone-300">
-                  <IonIcon icon={flameOutline} className="w-5 h-5 text-orange-500" />
-                  <span>Last studied: {new Date(progress.lastStudyDate).toLocaleDateString()}</span>
-                </div>
-              )}
             </div>
 
             <div className="mt-6 flex gap-3">

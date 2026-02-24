@@ -3,6 +3,7 @@ import { IonApp, IonRouterOutlet, setupIonicReact } from '@ionic/react';
 import { IonReactRouter } from '@ionic/react-router';
 import WelcomeScreen from './components/WelcomeScreen';
 import Dashboard from './components/Dashboard';
+import AuthCallback from './components/AuthCallback';
 import { ProgressProvider } from './contexts/ProgressContext';
 
 /* Core CSS required for Ionic components to work properly */
@@ -37,6 +38,8 @@ const App: React.FC = () => (
           <Route path="/welcome" element={<WelcomeScreen />} />
 
           <Route path="/dashboard" element={<Dashboard />} />
+
+          <Route path="/auth/callback" element={<AuthCallback />} />
 
           {/* Вместо Redirect используем Navigate */}
           <Route path="/" element={<Navigate to="/welcome" replace />} />

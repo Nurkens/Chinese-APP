@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { IonIcon } from '@ionic/react';
-import { home, book, location, person, flame, map, schoolOutline, peopleOutline } from 'ionicons/icons';
+import { home, book, location, person, flame, schoolOutline, peopleOutline, brushOutline } from 'ionicons/icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useProgress } from '../contexts/ProgressContext';
 import { wordsAPI, userAPI } from '../services/api';
@@ -8,14 +8,9 @@ import { useNavigate } from 'react-router-dom';
 import WordLibrary from './WordLibrary';
 import Goals from './Goals';
 import Profile from './Profile';
-import LanguageLearningMap from './LanguageLearningMap';
 import ReviewSession from './ReviewSession';
 import Friends from './Friends';
-import AITutor from './anime/AITutor/AITutor';
-import GachaSystem from './anime/Gacha/GachaSystem';
 import HanziWriter from './anime/HanziPractice/HanziWriter';
-import { gachaAPI } from '../services/gachaAPI';
-import type { PityState } from '../types/gacha.types';
 import type { HanziDrawingResult } from '../types/battle.types';
 
 interface TodayWord {
@@ -33,12 +28,9 @@ const Dashboard: React.FC = () => {
   const [todayWord, setTodayWord] = useState<TodayWord | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Anime features state
-  const [showTutor, setShowTutor] = useState(false);
-  const [showGacha, setShowGacha] = useState(false);
   const [showHanziPractice, setShowHanziPractice] = useState(false);
-  const [pityState, setPityState] = useState<PityState | null>(null);
-  const [spiritStones, setSpiritStones] = useState(1600);
+  const [practiceChars, setPracticeChars] = useState<{ chinese: string; pinyin: string; translation: string }[]>([]);
+  const [practiceIndex, setPracticeIndex] = useState(0);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -69,45 +61,38 @@ const Dashboard: React.FC = () => {
     loadDashboardData();
   }, [isAuthenticated, navigate, refreshProgress]);
 
-  // Load gacha pity state
-  useEffect(() => {
-    const loadGachaData = async () => {
-      try {
-        const pity = await gachaAPI.getPityState();
-        setPityState(pity);
-      } catch (error) {
-        console.error('Failed to load gacha data:', error);
-      }
-    };
-    if (isAuthenticated) {
-      loadGachaData();
-    }
-  }, [isAuthenticated]);
-
   const handleLogout = () => {
     logout();
     navigate('/welcome');
   };
 
-  // Handle gacha pull
-  const handleGachaPull = async (pullType: 'single' | 'ten') => {
-    try {
-      const result = await gachaAPI.pull(pullType);
-      setSpiritStones((prev) => prev - result.spiritStonesSpent);
-      const newPity = await gachaAPI.getPityState();
-      setPityState(newPity);
-      return result;
-    } catch (error) {
-      console.error('Gacha pull failed:', error);
-      throw error;
-    }
-  };
+  // Load practice characters when modal opens
+  useEffect(() => {
+    if (!showHanziPractice) return;
+    const loadChars = async () => {
+      try {
+        const words = await wordsAPI.getWordsByHskLevel(progress?.hskLevel || 1);
+        // Filter to single characters only (hanzi-writer works with single chars)
+        const singleChars = words.filter((w: any) => w.chinese.length === 1);
+        if (singleChars.length > 0) {
+          setPracticeChars(singleChars);
+          setPracticeIndex(0);
+        }
+      } catch (error) {
+        console.error('Failed to load practice characters:', error);
+      }
+    };
+    loadChars();
+  }, [showHanziPractice, progress?.hskLevel]);
 
   // Handle hanzi practice completion
-  const handlePracticeComplete = (result: HanziDrawingResult) => {
-    const reward = Math.floor(result.accuracy / 10) * 10;
-    setSpiritStones((prev) => prev + reward);
-    alert(`Great job! You earned ${reward} Spirit Stones! Accuracy: ${result.accuracy}%`);
+  const handlePracticeComplete = (_result: HanziDrawingResult) => {
+    // Auto-advance to next character after completion
+    setTimeout(() => {
+      if (practiceIndex < practiceChars.length - 1) {
+        setPracticeIndex((prev) => prev + 1);
+      }
+    }, 500);
   };
 
   if (loading) {
@@ -249,19 +234,6 @@ const Dashboard: React.FC = () => {
               {/* Friends Tab */}
               {activeTab === 'friends' && <Friends />}
 
-              {/* 3D Map Tab */}
-              {activeTab === 'map' && (
-                <div className="fixed inset-0 z-50">
-                  <LanguageLearningMap />
-                  <button
-                    onClick={() => setActiveTab('menu')}
-                    className="absolute top-4 right-4 z-50 px-6 py-3 bg-stone-900/90 hover:bg-stone-800/90 text-primary rounded-xl border border-primary/30 transition-all"
-                  >
-                    ← Back to Dashboard
-                  </button>
-                </div>
-              )}
-
               {/* Profile Tab */}
               {activeTab === 'profile' && <Profile />}
             </div>
@@ -310,19 +282,6 @@ const Dashboard: React.FC = () => {
                     <span className="font-medium">Review (SRS)</span>
                   </button>
 
-                  {/* 3D Learning Map */}
-                  <button
-                    onClick={() => setActiveTab('map')}
-                    className={`w-full flex items-center gap-3 px-5 py-4 rounded-xl transition-all ${
-                      activeTab === 'map'
-                        ? 'bg-primary/20 text-primary border border-primary/30'
-                        : 'text-stone-400 hover:text-stone-300 hover:bg-stone-700/30'
-                    }`}
-                  >
-                    <IonIcon icon={map} className="w-6 h-6" />
-                    <span className="font-medium">3D Learning Map</span>
-                  </button>
-
                   {/* Goals */}
                   <button
                     onClick={() => setActiveTab('goals')}
@@ -362,37 +321,12 @@ const Dashboard: React.FC = () => {
                     <span className="font-medium">Profile</span>
                   </button>
 
-                  {/* ANIME FEATURES DIVIDER */}
-                  <div className="border-t border-amber-700/20 my-4"></div>
-                  <h4 className="text-amber-600/60 text-xs font-medium tracking-widest mb-3 px-2">ANIME FEATURES</h4>
-
-                  {/* AI Tutor */}
-                  <button
-                    onClick={() => setShowTutor(true)}
-                    className="w-full flex items-center gap-3 px-5 py-4 rounded-xl transition-all bg-gradient-to-r from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 text-purple-300 border border-purple-500/30"
-                  >
-                    <span className="text-2xl">🌸</span>
-                    <span className="font-medium">AI Tutor (小美)</span>
-                  </button>
-
-                  {/* Gacha System */}
-                  <button
-                    onClick={() => setShowGacha(true)}
-                    className="w-full flex items-center gap-3 px-5 py-4 rounded-xl transition-all bg-gradient-to-r from-yellow-500/20 to-orange-500/20 hover:from-yellow-500/30 hover:to-orange-500/30 text-yellow-300 border border-yellow-500/30"
-                  >
-                    <span className="text-2xl">🎴</span>
-                    <div className="text-left flex-1">
-                      <div className="font-medium">Character Wish</div>
-                      <div className="text-xs opacity-75">💎 {spiritStones} Stones</div>
-                    </div>
-                  </button>
-
                   {/* Hanzi Practice */}
                   <button
                     onClick={() => setShowHanziPractice(true)}
-                    className="w-full flex items-center gap-3 px-5 py-4 rounded-xl transition-all bg-gradient-to-r from-blue-500/20 to-cyan-500/20 hover:from-blue-500/30 hover:to-cyan-500/30 text-blue-300 border border-blue-500/30"
+                    className="w-full flex items-center gap-3 px-5 py-4 rounded-xl transition-all text-stone-400 hover:text-stone-300 hover:bg-stone-700/30"
                   >
-                    <span className="text-2xl">✍️</span>
+                    <IonIcon icon={brushOutline} className="w-6 h-6" />
                     <span className="font-medium">Hanzi Practice</span>
                   </button>
                 </div>
@@ -421,26 +355,6 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* AI Tutor Modal */}
-      {showTutor && (
-        <AITutor
-          userId={user?.id || 'guest'}
-          initialBackground="classroom"
-          onClose={() => setShowTutor(false)}
-        />
-      )}
-
-      {/* Gacha System Modal */}
-      {showGacha && pityState && (
-        <GachaSystem
-          userId={user?.id || 'guest'}
-          spiritStones={spiritStones}
-          pityState={pityState}
-          onPull={handleGachaPull}
-          onClose={() => setShowGacha(false)}
-        />
-      )}
-
       {/* Hanzi Practice Modal */}
       {showHanziPractice && (
         <div
@@ -450,12 +364,14 @@ const Dashboard: React.FC = () => {
             zIndex: 60,
             background: 'rgba(0, 0, 0, 0.9)',
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             justifyContent: 'center',
-            padding: '40px',
+            padding: '20px',
+            overflow: 'auto',
           }}
         >
-          <div style={{ position: 'relative' }}>
+          <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '40px', paddingBottom: '40px' }}>
+            {/* Close button */}
             <button
               onClick={() => setShowHanziPractice(false)}
               style={{
@@ -476,13 +392,77 @@ const Dashboard: React.FC = () => {
             >
               ✕
             </button>
-            <HanziWriter
-              character="人"
-              onComplete={handlePracticeComplete}
-              showHints={true}
-              showOutline={true}
-              size={500}
-            />
+
+            {/* Character info header */}
+            {practiceChars.length > 0 && (
+              <div style={{
+                marginBottom: '16px',
+                textAlign: 'center',
+                color: '#FFD700',
+              }}>
+                <div style={{ fontSize: '14px', opacity: 0.7 }}>
+                  {practiceIndex + 1} / {practiceChars.length}
+                </div>
+                <div style={{ fontSize: '18px', marginTop: '4px' }}>
+                  <span style={{ color: '#fff' }}>{practiceChars[practiceIndex].pinyin}</span>
+                  <span style={{ color: '#A0AEC0', marginLeft: '12px' }}>{practiceChars[practiceIndex].translation}</span>
+                </div>
+              </div>
+            )}
+
+            {/* HanziWriter */}
+            {practiceChars.length > 0 ? (
+              <HanziWriter
+                key={practiceChars[practiceIndex].chinese}
+                character={practiceChars[practiceIndex].chinese}
+                onComplete={handlePracticeComplete}
+                showHints={true}
+                showOutline={true}
+                size={400}
+              />
+            ) : (
+              <div style={{ color: '#A0AEC0', fontSize: '18px', padding: '40px' }}>
+                Loading characters...
+              </div>
+            )}
+
+            {/* Prev / Next buttons */}
+            {practiceChars.length > 1 && (
+              <div style={{ display: 'flex', gap: '16px', marginTop: '16px' }}>
+                <button
+                  onClick={() => setPracticeIndex((prev) => Math.max(0, prev - 1))}
+                  disabled={practiceIndex === 0}
+                  style={{
+                    padding: '10px 28px',
+                    fontSize: '16px',
+                    fontWeight: 'bold',
+                    background: practiceIndex === 0 ? 'rgba(255,255,255,0.1)' : '#D4AF37',
+                    color: practiceIndex === 0 ? '#666' : '#1A0E2E',
+                    border: 'none',
+                    borderRadius: '12px',
+                    cursor: practiceIndex === 0 ? 'default' : 'pointer',
+                  }}
+                >
+                  Prev
+                </button>
+                <button
+                  onClick={() => setPracticeIndex((prev) => Math.min(practiceChars.length - 1, prev + 1))}
+                  disabled={practiceIndex === practiceChars.length - 1}
+                  style={{
+                    padding: '10px 28px',
+                    fontSize: '16px',
+                    fontWeight: 'bold',
+                    background: practiceIndex === practiceChars.length - 1 ? 'rgba(255,255,255,0.1)' : '#D4AF37',
+                    color: practiceIndex === practiceChars.length - 1 ? '#666' : '#1A0E2E',
+                    border: 'none',
+                    borderRadius: '12px',
+                    cursor: practiceIndex === practiceChars.length - 1 ? 'default' : 'pointer',
+                  }}
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

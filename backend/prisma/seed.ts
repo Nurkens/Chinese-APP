@@ -13,6 +13,7 @@ async function main() {
     create: {
       id: 'guest',
       username: 'guest',
+      tag: 'guest#0000',
       isGuest: true,
       progress: {
         create: {

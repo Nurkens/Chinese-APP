@@ -1,14 +1,4 @@
-/**
- * ✍️ HanziWriter Component
- *
- * Traditional calligraphy practice with anime particle effects.
- * Uses hanzi-writer library for stroke order detection.
- *
- * SETUP:
- * npm install hanzi-writer
- */
-
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { HanziDrawingResult } from '../../../types/battle.types';
 import { ANIME_THEME } from '../../../types/anime.types';
@@ -29,151 +19,211 @@ const HanziWriter: React.FC<HanziWriterProps> = ({
   size = 400,
 }) => {
   const writerRef = useRef<HTMLDivElement>(null);
-  const [hanziWriter, setHanziWriter] = useState<any>(null);
+  const writerInstanceRef = useRef<any>(null);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+
   const [strokesCorrect, setStrokesCorrect] = useState(0);
   const [strokesTotal, setStrokesTotal] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const [particles, setParticles] = useState<{ id: number; x: number; y: number }[]>([]);
-  const [startTime] = useState(Date.now());
+  const [quizReady, setQuizReady] = useState(false);
+
+  const strokesCorrectRef = useRef(0);
+  const startTimeRef = useRef(Date.now());
+
+  function addParticles(isSuccess: boolean) {
+    const count = isSuccess ? 12 : 5;
+    const newParticles = Array.from({ length: count }, (_, i) => ({
+      id: Date.now() + i,
+      x: size / 2,
+      y: size / 2,
+    }));
+    setParticles((prev) => [...prev, ...newParticles]);
+    setTimeout(() => {
+      setParticles((prev) => prev.filter((p) => !newParticles.find((np) => np.id === p.id)));
+    }, 1500);
+  }
+
+  function fireFireworks() {
+    for (let i = 0; i < 3; i++) {
+      setTimeout(() => addParticles(true), i * 300);
+    }
+  }
+
+  function startQuiz(writer: any, totalCount: number, fromStroke = 0) {
+    writer.quiz({
+      quizStartStrokeNum: fromStroke,
+      showHintAfterMisses: 3,
+      onMistake: () => {
+        addParticles(false);
+      },
+      onCorrectStroke: () => {
+        strokesCorrectRef.current += 1;
+        setStrokesCorrect(strokesCorrectRef.current);
+        addParticles(true);
+      },
+      onComplete: (summaryData: any) => {
+        setIsComplete(true);
+        setStrokesCorrect(totalCount);
+        strokesCorrectRef.current = totalCount;
+
+        const timeSpent = (Date.now() - startTimeRef.current) / 1000;
+        const accuracy = summaryData.totalMistakes === 0
+          ? 100
+          : Math.max(0, 100 - summaryData.totalMistakes * 10);
+
+        const result: HanziDrawingResult = {
+          character,
+          accuracy,
+          strokesCorrect: totalCount - summaryData.totalMistakes,
+          strokesTotal: totalCount,
+          timeSpent,
+          perfectStrokes: [],
+        };
+
+        fireFireworks();
+        setTimeout(() => onCompleteRef.current?.(result), 2000);
+      },
+    }).then(() => {
+      console.log('Quiz started successfully');
+      setQuizReady(true);
+    }).catch((err: any) => {
+      console.error('Quiz failed to start:', err);
+    });
+  }
 
   // Initialize HanziWriter
   useEffect(() => {
     if (!writerRef.current) return;
+    let cancelled = false;
+    setQuizReady(false);
+    setStrokesCorrect(0);
+    setIsComplete(false);
+    setParticles([]);
+    strokesCorrectRef.current = 0;
+    startTimeRef.current = Date.now();
 
-    const initWriter = async () => {
+    let writer: any = null;
+    let totalCount = 0;
+
+    const init = async () => {
       try {
-        // Dynamically import hanzi-writer
-        const HanziWriter = (await import('hanzi-writer')).default;
+        const HanziWriterLib = (await import('hanzi-writer')).default;
+        if (cancelled) return;
 
-        // Clear any existing content
+        const charData = await HanziWriterLib.loadCharacterData(character);
+        if (cancelled || !charData) return;
+        totalCount = (charData as any).strokes?.length || 0;
+        setStrokesTotal(totalCount);
+
         writerRef.current!.innerHTML = '';
 
-        // Create new writer instance
-        const writer = HanziWriter.create(writerRef.current!, character, {
+        writer = HanziWriterLib.create(writerRef.current!, character, {
           width: size,
           height: size,
           padding: 20,
           strokeColor: ANIME_THEME.primary.gold,
           outlineColor: showOutline ? 'rgba(255, 215, 0, 0.2)' : 'rgba(0, 0, 0, 0)',
-          showCharacter: false, // Don't show character initially
+          showCharacter: false,
           showOutline: showOutline,
           drawingWidth: 30,
-          strokeAnimationSpeed: 1,
-          delayBetweenStrokes: 200,
+          strokeAnimationSpeed: 2,
+          delayBetweenStrokes: 100,
         });
 
-        setHanziWriter(writer);
+        if (cancelled) return;
+        writerInstanceRef.current = { writer, totalCount };
 
-        // Get stroke count
-        const strokes = writer._character.strokes || [];
-        setStrokesTotal(strokes.length);
+        await writer.animateCharacter();
+        if (cancelled) return;
 
-        // Quiz mode - user draws
-        writer.quiz({
-          onMistake: (strokeData: any) => {
-            console.log('Mistake on stroke:', strokeData);
-            // Show red flash animation
-            createParticles(strokeData.x || size / 2, strokeData.y || size / 2, '#F56565', false);
-          },
-          onCorrectStroke: (strokeData: any) => {
-            console.log('Correct stroke:', strokeData);
-            setStrokesCorrect((prev) => prev + 1);
-            // Show gold particle burst
-            createParticles(strokeData.x || size / 2, strokeData.y || size / 2, ANIME_THEME.primary.lightGold, true);
-          },
-          onComplete: (summaryData: any) => {
-            console.log('Drawing complete:', summaryData);
-            setIsComplete(true);
-
-            const timeSpent = (Date.now() - startTime) / 1000; // seconds
-            const accuracy = (summaryData.totalMistakes === 0 ? 100 : Math.max(0, 100 - (summaryData.totalMistakes * 10)));
-
-            const result: HanziDrawingResult = {
-              character,
-              accuracy,
-              strokesCorrect: summaryData.totalStrokes - summaryData.totalMistakes,
-              strokesTotal: summaryData.totalStrokes,
-              timeSpent,
-              perfectStrokes: [], // TODO: Track which strokes were perfect
-            };
-
-            // Celebration animation
-            createFireworks();
-
-            setTimeout(() => {
-              onComplete?.(result);
-            }, 2000);
-          },
-        });
-
-        // Show character animation initially
-        writer.animateCharacter();
+        startQuiz(writer, totalCount);
       } catch (error) {
         console.error('Failed to initialize HanziWriter:', error);
       }
     };
 
-    initWriter();
+    init();
 
     return () => {
-      if (hanziWriter) {
-        // Cleanup
-      }
+      cancelled = true;
+      writerInstanceRef.current = null;
     };
   }, [character, size, showOutline]);
 
-  // Create particle effects
-  const createParticles = useCallback((x: number, y: number, color: string, isSuccess: boolean) => {
-    const particleCount = isSuccess ? 12 : 5;
-    const newParticles = Array.from({ length: particleCount }, (_, i) => ({
-      id: Date.now() + i,
-      x,
-      y,
-    }));
-    setParticles((prev) => [...prev, ...newParticles]);
+  function handleShowHint() {
+    console.log('=== Show Hint clicked ===');
+    console.log('writerInstanceRef.current:', writerInstanceRef.current);
+    console.log('quizReady:', quizReady);
+    console.log('strokesCorrectRef.current:', strokesCorrectRef.current);
 
-    // Remove particles after animation
-    setTimeout(() => {
-      setParticles((prev) => prev.filter((p) => !newParticles.find((np) => np.id === p.id)));
-    }, 1500);
-  }, []);
-
-  // Fireworks for completion
-  const createFireworks = useCallback(() => {
-    const centerX = size / 2;
-    const centerY = size / 2;
-    for (let i = 0; i < 3; i++) {
-      setTimeout(() => {
-        createParticles(centerX, centerY, ANIME_THEME.primary.lightGold, true);
-      }, i * 300);
+    const ref = writerInstanceRef.current;
+    if (!ref) {
+      console.log('ERROR: No writer instance');
+      return;
     }
-  }, [size, createParticles]);
+    const { writer, totalCount } = ref;
+    const currentStroke = strokesCorrectRef.current;
 
-  // Show hint (animate next stroke)
-  const showHint = useCallback(() => {
-    if (hanziWriter) {
-      hanziWriter.animateStroke(strokesCorrect);
+    console.log('Attempting to animate stroke', currentStroke);
+    try {
+      const promise = writer.animateStroke(currentStroke);
+      console.log('animateStroke returned:', promise);
+      if (promise && promise.then) {
+        promise.then(() => {
+          console.log('Stroke animation complete, restarting quiz');
+          startQuiz(writer, totalCount, currentStroke);
+        }).catch((err: any) => {
+          console.error('animateStroke error:', err);
+        });
+      }
+    } catch (err) {
+      console.error('Exception in handleShowHint:', err);
     }
-  }, [hanziWriter, strokesCorrect]);
+  }
 
-  // Reset drawing
-  const reset = useCallback(() => {
-    if (hanziWriter) {
-      hanziWriter.cancelQuiz();
-      hanziWriter.quiz();
+  function handleReset() {
+    console.log('=== Reset clicked ===');
+    console.log('writerInstanceRef.current:', writerInstanceRef.current);
+
+    const ref = writerInstanceRef.current;
+    if (!ref) {
+      console.log('ERROR: No writer instance');
+      return;
+    }
+    const { writer, totalCount } = ref;
+
+    console.log('Resetting writer');
+    try {
+      writer.cancelQuiz();
       setStrokesCorrect(0);
       setIsComplete(false);
       setParticles([]);
+      strokesCorrectRef.current = 0;
+      startTimeRef.current = Date.now();
+      setQuizReady(false);
+
+      const hidePromise = writer.hideCharacter({ duration: 0 });
+      console.log('hideCharacter returned:', hidePromise);
+
+      Promise.resolve(hidePromise).then(() => {
+        console.log('Character hidden');
+        const showPromise = writer.showOutline();
+        return Promise.resolve(showPromise);
+      }).then(() => {
+        console.log('Outline shown, starting quiz');
+        startQuiz(writer, totalCount, 0);
+      }).catch((err: any) => {
+        console.error('Reset error:', err);
+      });
+    } catch (err) {
+      console.error('Exception in handleReset:', err);
     }
-  }, [hanziWriter]);
+  }
 
   return (
-    <div
-      style={{
-        position: 'relative',
-        display: 'inline-block',
-      }}
-    >
+    <div style={{ position: 'relative', display: 'inline-block' }}>
       {/* Traditional paper background */}
       <div
         style={{
@@ -186,54 +236,25 @@ const HanziWriter: React.FC<HanziWriterProps> = ({
           backgroundSize: '50px 50px',
           borderRadius: '16px',
           border: `4px solid ${ANIME_THEME.primary.gold}`,
-          boxShadow: `
-            0 8px 32px rgba(0, 0, 0, 0.3),
-            inset 0 0 40px rgba(255, 215, 0, 0.1)
-          `,
+          boxShadow: `0 8px 32px rgba(0,0,0,0.3), inset 0 0 40px rgba(255,215,0,0.1)`,
           zIndex: 0,
         }}
       />
 
-      {/* Red grid lines (like traditional practice paper) */}
+      {/* Red grid lines */}
       <svg
-        style={{
-          position: 'absolute',
-          inset: 0,
-          zIndex: 1,
-          pointerEvents: 'none',
-        }}
+        style={{ position: 'absolute', inset: 0, zIndex: 1, pointerEvents: 'none' }}
         width={size}
         height={size}
       >
-        <line
-          x1={size / 2}
-          y1="0"
-          x2={size / 2}
-          y2={size}
-          stroke="rgba(255, 100, 100, 0.2)"
-          strokeWidth="2"
-          strokeDasharray="5,5"
-        />
-        <line
-          x1="0"
-          y1={size / 2}
-          x2={size}
-          y2={size / 2}
-          stroke="rgba(255, 100, 100, 0.2)"
-          strokeWidth="2"
-          strokeDasharray="5,5"
-        />
+        <line x1={size / 2} y1="0" x2={size / 2} y2={size} stroke="rgba(255,100,100,0.2)" strokeWidth="2" strokeDasharray="5,5" />
+        <line x1="0" y1={size / 2} x2={size} y2={size / 2} stroke="rgba(255,100,100,0.2)" strokeWidth="2" strokeDasharray="5,5" />
       </svg>
 
       {/* HanziWriter canvas */}
       <div
         ref={writerRef}
-        style={{
-          position: 'relative',
-          zIndex: 2,
-          width: `${size}px`,
-          height: `${size}px`,
-        }}
+        style={{ position: 'relative', zIndex: 2, width: `${size}px`, height: `${size}px` }}
       />
 
       {/* Particles */}
@@ -241,12 +262,7 @@ const HanziWriter: React.FC<HanziWriterProps> = ({
         {particles.map((particle) => (
           <motion.div
             key={particle.id}
-            initial={{
-              x: particle.x,
-              y: particle.y,
-              opacity: 1,
-              scale: 1,
-            }}
+            initial={{ x: particle.x, y: particle.y, opacity: 1, scale: 1 }}
             animate={{
               x: particle.x + (Math.random() - 0.5) * 100,
               y: particle.y + (Math.random() - 0.5) * 100,
@@ -281,31 +297,13 @@ const HanziWriter: React.FC<HanziWriterProps> = ({
           border: `2px solid ${ANIME_THEME.primary.gold}`,
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            marginBottom: '12px',
-            color: ANIME_THEME.text.white,
-            fontSize: '16px',
-          }}
-        >
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', color: ANIME_THEME.text.white, fontSize: '16px' }}>
           <span>Strokes: {strokesCorrect} / {strokesTotal}</span>
           <span>{strokesTotal > 0 ? Math.round((strokesCorrect / strokesTotal) * 100) : 0}%</span>
         </div>
-        <div
-          style={{
-            width: '100%',
-            height: '12px',
-            background: 'rgba(255, 255, 255, 0.1)',
-            borderRadius: '6px',
-            overflow: 'hidden',
-          }}
-        >
+        <div style={{ width: '100%', height: '12px', background: 'rgba(255,255,255,0.1)', borderRadius: '6px', overflow: 'hidden' }}>
           <motion.div
-            animate={{
-              width: `${strokesTotal > 0 ? (strokesCorrect / strokesTotal) * 100 : 0}%`,
-            }}
+            animate={{ width: `${strokesTotal > 0 ? (strokesCorrect / strokesTotal) * 100 : 0}%` }}
             transition={{ duration: 0.5, ease: 'easeOut' }}
             style={{
               height: '100%',
@@ -319,10 +317,8 @@ const HanziWriter: React.FC<HanziWriterProps> = ({
       {/* Action buttons */}
       <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
         {showHints && !isComplete && (
-          <motion.button
-            onClick={showHint}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+          <button
+            onClick={handleShowHint}
             style={{
               flex: 1,
               padding: '12px 24px',
@@ -335,13 +331,11 @@ const HanziWriter: React.FC<HanziWriterProps> = ({
               cursor: 'pointer',
             }}
           >
-            💡 Show Hint
-          </motion.button>
+            Show Hint
+          </button>
         )}
-        <motion.button
-          onClick={reset}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+        <button
+          onClick={handleReset}
           style={{
             flex: 1,
             padding: '12px 24px',
@@ -354,8 +348,8 @@ const HanziWriter: React.FC<HanziWriterProps> = ({
             cursor: 'pointer',
           }}
         >
-          🔄 Reset
-        </motion.button>
+          Reset
+        </button>
       </div>
 
       {/* Completion message */}
@@ -378,15 +372,8 @@ const HanziWriter: React.FC<HanziWriterProps> = ({
             boxShadow: '0 8px 32px rgba(255, 215, 0, 0.6)',
           }}
         >
-          <div style={{ fontSize: '64px', marginBottom: '16px' }}>🎉</div>
-          <div
-            style={{
-              fontSize: '32px',
-              fontWeight: 'bold',
-              color: ANIME_THEME.primary.lightGold,
-              marginBottom: '12px',
-            }}
-          >
+          <div style={{ fontSize: '64px', marginBottom: '16px' }}>&#127881;</div>
+          <div style={{ fontSize: '32px', fontWeight: 'bold', color: ANIME_THEME.primary.lightGold, marginBottom: '12px' }}>
             Perfect!
           </div>
           <div style={{ fontSize: '18px', color: ANIME_THEME.text.white }}>
@@ -399,26 +386,3 @@ const HanziWriter: React.FC<HanziWriterProps> = ({
 };
 
 export default HanziWriter;
-
-/**
- * USAGE EXAMPLE:
- *
- * import HanziWriter from './components/anime/HanziPractice/HanziWriter';
- *
- * function PracticePage() {
- *   const handleComplete = (result: HanziDrawingResult) => {
- *     console.log('Drawing result:', result);
- *     // Award points, update progress, etc.
- *   };
- *
- *   return (
- *     <HanziWriter
- *       character="人"
- *       onComplete={handleComplete}
- *       showHints={true}
- *       showOutline={true}
- *       size={400}
- *     />
- *   );
- * }
- */

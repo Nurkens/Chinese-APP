@@ -18,10 +18,12 @@ export class UserService {
 
       if (!user) {
         // Create user first
+        const suffix = Math.floor(1000 + Math.random() * 9000).toString();
         user = await this.prisma.user.create({
           data: {
             id: userId,
             username: userId,
+            tag: `${userId}#${suffix}`,
             isGuest: true,
           },
         });

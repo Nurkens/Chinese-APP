@@ -1,18 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const WelcomeScreen: React.FC = () => {
   const navigate = useNavigate();
-  const { login, register, guestLogin } = useAuth();
+  const { login, register, guestLogin, initializeGoogleLogin, isAuthenticated, googleError, clearGoogleError } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
   const [showSignup, setShowSignup] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Ref for Google button container
+  const googleButtonRef = useRef<HTMLDivElement>(null);
+
   // Form states
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [signupForm, setSignupForm] = useState({ username: '', email: '', password: '' });
+
+  // Initialize Google button when component mounts or when returning to main view
+  useEffect(() => {
+    if (!showLogin && !showSignup && googleButtonRef.current) {
+      initializeGoogleLogin(googleButtonRef.current);
+    }
+  }, [showLogin, showSignup, initializeGoogleLogin]);
+
+  // Redirect if authenticated
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard');
+    }
+  }, [isAuthenticated, navigate]);
+
+  // Clear Google error when switching views
+  useEffect(() => {
+    if (showLogin || showSignup) {
+      clearGoogleError();
+    }
+  }, [showLogin, showSignup, clearGoogleError]);
+
+  // Combine local error with Google error
+  const displayError = error || googleError;
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,6 +82,30 @@ const WelcomeScreen: React.FC = () => {
     }
   };
 
+  // Error notification component
+  const ErrorNotification = ({ message, onDismiss }: { message: string; onDismiss?: () => void }) => (
+    <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 animate-shake">
+      <div className="flex-shrink-0 w-5 h-5 text-red-500 mt-0.5">
+        <svg viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+        </svg>
+      </div>
+      <div className="flex-1">
+        <p className="text-red-700 text-sm font-medium">{message}</p>
+      </div>
+      {onDismiss && (
+        <button
+          onClick={onDismiss}
+          className="flex-shrink-0 text-red-400 hover:text-red-600 transition-colors"
+        >
+          <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+          </svg>
+        </button>
+      )}
+    </div>
+  );
+
   // If showing login form
   if (showLogin) {
     return (
@@ -62,11 +113,7 @@ const WelcomeScreen: React.FC = () => {
         <div className="w-full max-w-md">
           <div className="bg-white rounded-3xl shadow-2xl p-8">
             <h2 className="text-2xl font-light text-amber-900 mb-6 text-center">Log In</h2>
-            {error && (
-              <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
-                {error}
-              </div>
-            )}
+            {error && <ErrorNotification message={error} onDismiss={() => setError('')} />}
             <form onSubmit={handleLogin} className="space-y-4">
               <input
                 type="text"
@@ -112,11 +159,7 @@ const WelcomeScreen: React.FC = () => {
         <div className="w-full max-w-md">
           <div className="bg-white rounded-3xl shadow-2xl p-8">
             <h2 className="text-2xl font-light text-amber-900 mb-6 text-center">Sign Up</h2>
-            {error && (
-              <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
-                {error}
-              </div>
-            )}
+            {error && <ErrorNotification message={error} onDismiss={() => setError('')} />}
             <form onSubmit={handleSignup} className="space-y-4">
               <input
                 type="text"
@@ -211,10 +254,14 @@ const WelcomeScreen: React.FC = () => {
             <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl p-10">
               <h2 className="text-3xl font-light text-amber-900 mb-8 text-center">Welcome Back</h2>
 
-              {error && (
-                <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-xl text-sm text-center">
-                  {error}
-                </div>
+              {displayError && (
+                <ErrorNotification
+                  message={displayError}
+                  onDismiss={() => {
+                    setError('');
+                    clearGoogleError();
+                  }}
+                />
               )}
 
               <div className="space-y-4">
@@ -246,6 +293,13 @@ const WelcomeScreen: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Google Login Button - GSI rendered button */}
+                <div
+                  ref={googleButtonRef}
+                  className="w-full flex justify-center"
+                  style={{ minHeight: '44px' }}
+                ></div>
+
                 {/* Continue as Guest */}
                 <button
                   onClick={handleGuestLogin}
@@ -265,6 +319,18 @@ const WelcomeScreen: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Add shake animation style */}
+      <style>{`
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+          20%, 40%, 60%, 80% { transform: translateX(4px); }
+        }
+        .animate-shake {
+          animation: shake 0.5s ease-in-out;
+        }
+      `}</style>
     </div>
   );
 };
