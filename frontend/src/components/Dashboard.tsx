@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { IonIcon } from '@ionic/react';
-import { home, book, location, person, flame, schoolOutline, peopleOutline, brushOutline } from 'ionicons/icons';
+import { home, book, location, person, flame, schoolOutline, peopleOutline, brushOutline, sparkles } from 'ionicons/icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useProgress } from '../contexts/ProgressContext';
+import { useXiaomei } from '../contexts/XiaomeiContext';
 import { wordsAPI, userAPI } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import WordLibrary from './WordLibrary';
@@ -11,7 +12,9 @@ import Profile from './Profile';
 import ReviewSession from './ReviewSession';
 import Friends from './Friends';
 import HanziWriter from './anime/HanziPractice/HanziWriter';
+import AdaptiveRecommendations from './AdaptiveRecommendations';
 import type { HanziDrawingResult } from '../types/battle.types';
+
 
 interface TodayWord {
   chinese: string;
@@ -24,6 +27,7 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
   const { progress, refreshProgress, loading: progressLoading } = useProgress();
+  const { showMessage } = useXiaomei();
   const [activeTab, setActiveTab] = useState('menu');
   const [todayWord, setTodayWord] = useState<TodayWord | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,6 +64,23 @@ const Dashboard: React.FC = () => {
 
     loadDashboardData();
   }, [isAuthenticated, navigate, refreshProgress]);
+
+  // Trigger Xiaomei message when tab changes
+  useEffect(() => {
+    const messageMap: Record<string, any> = {
+      'menu': 'tab:menu',
+      'scroll': 'tab:scroll',
+      'review': 'tab:review',
+      'goals': 'tab:goals',
+      'friends': 'tab:friends',
+      'profile': 'tab:profile',
+      'adaptive': 'tab:adaptive',
+    };
+    
+    if (messageMap[activeTab]) {
+      showMessage(messageMap[activeTab] as any);
+    }
+  }, [activeTab, showMessage]);
 
   const handleLogout = () => {
     logout();
@@ -104,47 +125,48 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-stone-900 via-amber-950 to-stone-900">
-      {/* Decorative elements */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl"></div>
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-amber-600/10 rounded-full blur-3xl"></div>
+    <div className="min-h-screen bg-linear-to-br from-stone-950 via-amber-950 to-stone-950">
+      {/* Decorative elements - Enhanced */}
+      <div className="absolute top-0 right-0 w-96 h-96 bg-primary/15 rounded-full blur-3xl animate-pulse"></div>
+      <div className="absolute bottom-0 left-0 w-96 h-96 bg-amber-600/15 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
+      <div className="absolute top-1/2 left-1/2 w-72 h-72 bg-orange-500/10 rounded-full blur-3xl" style={{ transform: 'translate(-50%, -50%)' }}></div>
 
       {/* Desktop Layout Container */}
       <div className="relative min-h-screen max-w-7xl mx-auto p-8">
         {/* Content */}
         <div className="flex flex-col h-full">
-          {/* Top Navigation Bar */}
-          <div className="flex items-center justify-between mb-12 bg-stone-900/50 backdrop-blur-xl rounded-2xl p-6 border border-amber-700/20">
+          {/* Top Navigation Bar - Enhanced */}
+          <div className="flex items-center justify-between mb-12 bg-gradient-to-r from-stone-800/70 to-stone-900/70 backdrop-blur-xl rounded-2xl p-7 border border-primary/30 shadow-2xl hover:border-primary/50 transition-all duration-300">
             {/* Left: Logo & User */}
             <div className="flex items-center gap-6">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center">
-                  <span className="text-2xl">🐼</span>
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-gradient-to-br from-primary/40 to-amber-600/40 rounded-full flex items-center justify-center shadow-lg border border-primary/30">
+                  <span className="text-3xl">🐼</span>
                 </div>
                 <div>
-                  <h2 className="text-primary text-xl font-medium">Journey of Words</h2>
-                  <p className="text-amber-200/60 text-sm">Welcome back, {user?.username || 'Warrior'}</p>
+                  <h2 className="text-primary text-2xl font-bold bg-gradient-to-r from-primary to-amber-400 bg-clip-text text-transparent">Journey of Words</h2>
+                  <p className="text-amber-200/70 text-sm font-medium">Welcome back, <span className="text-amber-300">{user?.username || 'Warrior'}</span></p>
                 </div>
               </div>
             </div>
 
             {/* Right: Stats & Logout */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               {/* Streak */}
-              <div className="flex items-center gap-2 bg-stone-800/60 backdrop-blur-md px-5 py-3 rounded-xl border border-amber-700/30">
-                <IonIcon icon={flame} className="w-5 h-5 text-orange-500" />
-                <span className="text-white font-medium">{progress?.currentStreak || 0}-day streak</span>
+              <div className="flex items-center gap-2 bg-gradient-to-r from-orange-500/20 to-red-600/20 backdrop-blur-md px-6 py-3 rounded-xl border border-orange-500/40 shadow-lg hover:shadow-orange-500/20 transition-all">
+                <IonIcon icon={flame} className="w-5 h-5 text-orange-400 group-hover:scale-110 transition-transform" />
+                <span className="text-white font-bold">{progress?.currentStreak || 0}-day</span>
               </div>
 
               {/* HSK Level */}
-              <div className="bg-stone-800/60 backdrop-blur-md px-5 py-3 rounded-xl border border-amber-700/30">
-                <span className="text-white font-medium">HSK {progress?.hskLevel || 1}</span>
+              <div className="bg-gradient-to-r from-blue-500/20 to-cyan-600/20 backdrop-blur-md px-6 py-3 rounded-xl border border-blue-500/40 shadow-lg hover:shadow-blue-500/20 transition-all">
+                <span className="text-white font-bold">HSK {progress?.hskLevel || 1}</span>
               </div>
 
               {/* Logout Button */}
               <button
                 onClick={handleLogout}
-                className="px-5 py-3 bg-stone-800/60 hover:bg-stone-700/60 text-amber-200 rounded-xl border border-amber-700/30 transition-all"
+                className="px-6 py-3 bg-gradient-to-r from-red-500/20 to-red-600/20 hover:from-red-500/40 hover:to-red-600/40 text-amber-200 rounded-xl border border-red-500/30 transition-all font-medium shadow-lg"
                 title="Logout"
               >
                 Logout
@@ -158,65 +180,84 @@ const Dashboard: React.FC = () => {
             <div className="lg:col-span-2">
               {/* Dashboard/Menu Tab */}
               {activeTab === 'menu' && (
-                <div className="space-y-8">
-                  {/* Today's Character Card */}
-                  <div className="bg-linear-to-br from-stone-800/80 to-stone-900/80 backdrop-blur-xl rounded-3xl p-10 border border-amber-700/20 shadow-2xl">
-                    <h2 className="text-amber-600 text-sm font-medium tracking-widest mb-6">
-                      TODAY'S CHARACTER
-                    </h2>
-
-                    {/* Character Display */}
-                    <div className="mb-8">
-                      <div className="text-2xl text-amber-500 mb-4">今天汉字</div>
-                      <div className="flex items-baseline gap-4">
-                        <IonIcon icon={flame} className="w-6 h-6 text-orange-500" />
-                        <span className="text-white text-4xl font-light">
-                          {todayWord?.chinese || '...'} - {todayWord?.pinyin || '...'} / {todayWord?.translation || '...'}
-                        </span>
-                      </div>
-                      {todayWord?.example && (
-                        <p className="text-amber-200/60 text-base mt-4 ml-10">
-                          Example: {todayWord.example}
-                        </p>
-                      )}
+                <div className="space-y-8 animate-fadeIn">
+                  {/* Today's Character Card - Enhanced */}
+                  <div className="bg-gradient-to-br from-amber-900/40 via-stone-800/50 to-stone-900/60 backdrop-blur-xl rounded-3xl p-10 border border-primary/40 shadow-2xl hover:shadow-primary/20 transition-all duration-300 hover:border-primary/60">
+                    <div className="flex items-center justify-between mb-8">
+                      <h2 className="text-amber-400 text-xs font-bold tracking-widest">✨ TODAY'S CHARACTER</h2>
+                      <div className="px-3 py-1 bg-primary/30 rounded-full text-primary text-xs font-bold">Daily Challenge</div>
                     </div>
 
-                    {/* Character Visual Placeholder */}
-                    <div className="w-24 h-24 bg-stone-700/50 rounded-2xl border border-amber-700/30 mb-8"></div>
+                    {/* Character Display - Enhanced */}
+                    <div className="mb-10">
+                      <div className="text-amber-300 text-sm font-bold tracking-wider mb-4 uppercase">今天汉字 · Hanzi of the Day</div>
+                      <div className="flex items-center gap-6">
+                        <div className="text-7xl font-bold text-transparent bg-gradient-to-r from-primary via-amber-400 to-orange-500 bg-clip-text drop-shadow-lg">
+                          {todayWord?.chinese || '...'}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-primary text-xl font-bold mb-2">{todayWord?.pinyin || '...'}</p>
+                          <p className="text-amber-200 text-lg">{todayWord?.translation || '...'}</p>
+                          {todayWord?.example && (
+                            <p className="text-amber-200/70 text-sm mt-3 italic border-l-2 border-primary/50 pl-3">
+                              "{todayWord.example}"
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
 
-                    {/* Review Button */}
+                    {/* Review Button - Enhanced */}
                     <button
                       onClick={() => setActiveTab('review')}
-                      className="w-full bg-linear-to-r from-primary/80 to-amber-600/80 hover:from-primary hover:to-amber-600 text-white font-medium py-4 rounded-xl border border-amber-700/30 transition-all duration-200 hover:shadow-lg"
+                      className="w-full bg-gradient-to-r from-primary via-amber-500 to-orange-500 hover:from-primary hover:to-amber-600 text-white font-bold py-4 rounded-xl border border-primary/50 transition-all duration-300 shadow-lg hover:shadow-primary/40 hover:scale-105 transform text-lg"
                     >
-                      START REVIEW SESSION
+                      🚀 START REVIEW SESSION
                     </button>
                   </div>
 
-                  {/* Progress Section */}
-                  <div className="bg-stone-800/60 backdrop-blur-md rounded-3xl p-8 border border-amber-700/20">
-                    <h3 className="text-primary text-lg font-medium tracking-widest mb-6">
-                      YOUR PROGRESS
+                  {/* Progress Section - Enhanced */}
+                  <div className="bg-gradient-to-br from-stone-800/60 to-stone-900/60 backdrop-blur-md rounded-3xl p-8 border border-primary/30 shadow-xl hover:border-primary/50 transition-all">
+                    <h3 className="text-primary text-lg font-bold tracking-widest mb-6 flex items-center gap-2">
+                      📊 YOUR PROGRESS
                     </h3>
 
-                    {/* Progress Bar */}
-                    <div className="mb-4">
-                      <div className="w-full bg-stone-700/50 rounded-full h-4 overflow-hidden">
+                    {/* Progress Info */}
+                    <div className="mb-6">
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="text-amber-200 font-semibold">
+                          {progress?.totalWords || 0} / {progress?.targetWords || 1200} words
+                        </span>
+                        <span className="text-primary font-bold text-lg">
+                          {progress ? Math.round((progress.totalWords / progress.targetWords) * 100) : 0}%
+                        </span>
+                      </div>
+                      
+                      {/* Progress Bar - Enhanced */}
+                      <div className="w-full bg-stone-700/60 rounded-full h-3 overflow-hidden border border-stone-600/40 shadow-inner">
                         <div
-                          className="bg-linear-to-r from-primary to-amber-500 h-full rounded-full transition-all duration-500"
+                          className="bg-gradient-to-r from-primary via-amber-500 to-orange-500 h-full rounded-full transition-all duration-700 shadow-lg shadow-primary/50"
                           style={{
                             width: `${progress ? Math.round((progress.totalWords / progress.targetWords) * 100) : 0}%`
                           }}
                         ></div>
                       </div>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-white text-lg font-medium">
-                        {progress?.totalWords || 0}/{progress?.targetWords || 1200} words
-                      </span>
-                      <span className="text-amber-500 text-base">
-                        {progress ? Math.round((progress.totalWords / progress.targetWords) * 100) : 0}% Complete
-                      </span>
+
+                    {/* Progress Stats Grid */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-stone-700/40 rounded-lg p-3 border border-stone-600/30 text-center">
+                        <p className="text-stone-400 text-xs font-medium mb-1">Words/Day</p>
+                        <p className="text-amber-400 font-bold text-lg">{progress ? Math.round(progress.totalWords / Math.max(progress.currentStreak, 1)) : 0}</p>
+                      </div>
+                      <div className="bg-stone-700/40 rounded-lg p-3 border border-stone-600/30 text-center">
+                        <p className="text-stone-400 text-xs font-medium mb-1">Days Active</p>
+                        <p className="text-amber-400 font-bold text-lg">{progress?.currentStreak || 0}</p>
+                      </div>
+                      <div className="bg-stone-700/40 rounded-lg p-3 border border-stone-600/30 text-center">
+                        <p className="text-stone-400 text-xs font-medium mb-1">Remaining</p>
+                        <p className="text-amber-400 font-bold text-lg">{progress ? progress.targetWords - progress.totalWords : 1200}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -236,117 +277,142 @@ const Dashboard: React.FC = () => {
 
               {/* Profile Tab */}
               {activeTab === 'profile' && <Profile />}
+
+              {/* Adaptive Learning Tab */}
+              {activeTab === 'adaptive' && <AdaptiveRecommendations />}
             </div>
 
-            {/* Right Column - Navigation */}
+            {/* Right Column - Navigation - Enhanced */}
             <div className="space-y-6">
-              <nav className="bg-stone-800/80 backdrop-blur-xl rounded-3xl p-6 border border-amber-700/20">
-                <h3 className="text-primary text-sm font-medium tracking-widest mb-6">NAVIGATION</h3>
-                <div className="space-y-3">
+              {/* Navigation Card */}
+              <nav className="bg-gradient-to-br from-stone-800/80 to-stone-900/80 backdrop-blur-xl rounded-3xl p-6 border border-primary/30 shadow-xl hover:border-primary/50 transition-all">
+                <h3 className="text-primary text-xs font-bold tracking-widest mb-6 flex items-center gap-2">🗺️ NAVIGATION</h3>
+                <div className="space-y-2">
                   {/* Menu */}
                   <button
                     onClick={() => setActiveTab('menu')}
-                    className={`w-full flex items-center gap-3 px-5 py-4 rounded-xl transition-all ${
+                    className={`w-full flex items-center gap-3 px-5 py-3 rounded-xl transition-all font-medium ${
                       activeTab === 'menu'
-                        ? 'bg-primary/20 text-primary border border-primary/30'
-                        : 'text-stone-400 hover:text-stone-300 hover:bg-stone-700/30'
+                        ? 'bg-gradient-to-r from-primary/40 to-amber-600/40 text-primary border border-primary/50 shadow-lg shadow-primary/20'
+                        : 'text-stone-300 hover:text-primary hover:bg-stone-700/40 border border-transparent'
                     }`}
                   >
-                    <IonIcon icon={home} className="w-6 h-6" />
-                    <span className="font-medium">Dashboard</span>
+                    <IonIcon icon={home} className="w-5 h-5" />
+                    <span>Dashboard</span>
                   </button>
 
                   {/* Scroll */}
                   <button
                     onClick={() => setActiveTab('scroll')}
-                    className={`w-full flex items-center gap-3 px-5 py-4 rounded-xl transition-all ${
+                    className={`w-full flex items-center gap-3 px-5 py-3 rounded-xl transition-all font-medium ${
                       activeTab === 'scroll'
-                        ? 'bg-primary/20 text-primary border border-primary/30'
-                        : 'text-stone-400 hover:text-stone-300 hover:bg-stone-700/30'
+                        ? 'bg-gradient-to-r from-primary/40 to-amber-600/40 text-primary border border-primary/50 shadow-lg shadow-primary/20'
+                        : 'text-stone-300 hover:text-primary hover:bg-stone-700/40 border border-transparent'
                     }`}
                   >
-                    <IonIcon icon={book} className="w-6 h-6" />
-                    <span className="font-medium">Word Library</span>
+                    <IonIcon icon={book} className="w-5 h-5" />
+                    <span>Word Library</span>
                   </button>
 
                   {/* Review Session (SRS) */}
                   <button
                     onClick={() => setActiveTab('review')}
-                    className={`w-full flex items-center gap-3 px-5 py-4 rounded-xl transition-all ${
+                    className={`w-full flex items-center gap-3 px-5 py-3 rounded-xl transition-all font-medium ${
                       activeTab === 'review'
-                        ? 'bg-primary/20 text-primary border border-primary/30'
-                        : 'text-stone-400 hover:text-stone-300 hover:bg-stone-700/30'
+                        ? 'bg-gradient-to-r from-primary/40 to-amber-600/40 text-primary border border-primary/50 shadow-lg shadow-primary/20'
+                        : 'text-stone-300 hover:text-primary hover:bg-stone-700/40 border border-transparent'
                     }`}
                   >
-                    <IonIcon icon={schoolOutline} className="w-6 h-6" />
-                    <span className="font-medium">Review (SRS)</span>
+                    <IonIcon icon={schoolOutline} className="w-5 h-5" />
+                    <span>Review (SRS)</span>
                   </button>
 
                   {/* Goals */}
                   <button
                     onClick={() => setActiveTab('goals')}
-                    className={`w-full flex items-center gap-3 px-5 py-4 rounded-xl transition-all ${
+                    className={`w-full flex items-center gap-3 px-5 py-3 rounded-xl transition-all font-medium ${
                       activeTab === 'goals'
-                        ? 'bg-primary/20 text-primary border border-primary/30'
-                        : 'text-stone-400 hover:text-stone-300 hover:bg-stone-700/30'
+                        ? 'bg-gradient-to-r from-primary/40 to-amber-600/40 text-primary border border-primary/50 shadow-lg shadow-primary/20'
+                        : 'text-stone-300 hover:text-primary hover:bg-stone-700/40 border border-transparent'
                     }`}
                   >
-                    <IonIcon icon={location} className="w-6 h-6" />
-                    <span className="font-medium">Goals & Progress</span>
+                    <IonIcon icon={location} className="w-5 h-5" />
+                    <span>Goals & Progress</span>
                   </button>
 
                   {/* Friends */}
                   <button
                     onClick={() => setActiveTab('friends')}
-                    className={`w-full flex items-center gap-3 px-5 py-4 rounded-xl transition-all ${
+                    className={`w-full flex items-center gap-3 px-5 py-3 rounded-xl transition-all font-medium ${
                       activeTab === 'friends'
-                        ? 'bg-primary/20 text-primary border border-primary/30'
-                        : 'text-stone-400 hover:text-stone-300 hover:bg-stone-700/30'
+                        ? 'bg-gradient-to-r from-primary/40 to-amber-600/40 text-primary border border-primary/50 shadow-lg shadow-primary/20'
+                        : 'text-stone-300 hover:text-primary hover:bg-stone-700/40 border border-transparent'
                     }`}
                   >
-                    <IonIcon icon={peopleOutline} className="w-6 h-6" />
-                    <span className="font-medium">Friends</span>
+                    <IonIcon icon={peopleOutline} className="w-5 h-5" />
+                    <span>Friends</span>
                   </button>
 
                   {/* Profile */}
                   <button
                     onClick={() => setActiveTab('profile')}
-                    className={`w-full flex items-center gap-3 px-5 py-4 rounded-xl transition-all ${
+                    className={`w-full flex items-center gap-3 px-5 py-3 rounded-xl transition-all font-medium ${
                       activeTab === 'profile'
-                        ? 'bg-primary/20 text-primary border border-primary/30'
-                        : 'text-stone-400 hover:text-stone-300 hover:bg-stone-700/30'
+                        ? 'bg-gradient-to-r from-primary/40 to-amber-600/40 text-primary border border-primary/50 shadow-lg shadow-primary/20'
+                        : 'text-stone-300 hover:text-primary hover:bg-stone-700/40 border border-transparent'
                     }`}
                   >
-                    <IonIcon icon={person} className="w-6 h-6" />
-                    <span className="font-medium">Profile</span>
+                    <IonIcon icon={person} className="w-5 h-5" />
+                    <span>Profile</span>
                   </button>
 
                   {/* Hanzi Practice */}
                   <button
-                    onClick={() => setShowHanziPractice(true)}
-                    className="w-full flex items-center gap-3 px-5 py-4 rounded-xl transition-all text-stone-400 hover:text-stone-300 hover:bg-stone-700/30"
+                    onClick={() => {
+                      showMessage('tab:hanzi');
+                      setShowHanziPractice(true);
+                    }}
+                    className="w-full flex items-center gap-3 px-5 py-3 rounded-xl transition-all font-medium text-stone-300 hover:text-primary hover:bg-stone-700/40 border border-transparent"
                   >
-                    <IonIcon icon={brushOutline} className="w-6 h-6" />
-                    <span className="font-medium">Hanzi Practice</span>
+                    <IonIcon icon={brushOutline} className="w-5 h-5" />
+                    <span>Hanzi Practice</span>
+                  </button>
+
+                  {/* Adaptive Learning */}
+                  <button
+                    onClick={() => setActiveTab('adaptive')}
+                    className={`w-full flex items-center gap-3 px-5 py-3 rounded-xl transition-all font-medium ${
+                      activeTab === 'adaptive'
+                        ? 'bg-gradient-to-r from-primary/40 to-amber-600/40 text-primary border border-primary/50 shadow-lg shadow-primary/20'
+                        : 'text-stone-300 hover:text-primary hover:bg-stone-700/40 border border-transparent'
+                    }`}
+                  >
+                    <IonIcon icon={sparkles} className="w-5 h-5" />
+                    <span>AI Learning Plan</span>
                   </button>
                 </div>
               </nav>
 
-              {/* Stats Card */}
-              <div className="bg-stone-800/60 backdrop-blur-md rounded-3xl p-6 border border-amber-700/20">
-                <h3 className="text-primary text-sm font-medium tracking-widest mb-4">STATS</h3>
+              {/* Stats Card - Enhanced */}
+              <div className="bg-gradient-to-br from-stone-800/80 to-stone-900/80 backdrop-blur-md rounded-3xl p-6 border border-primary/30 shadow-xl hover:border-primary/50 transition-all">
+                <h3 className="text-primary text-xs font-bold tracking-widest mb-6 flex items-center gap-2">📈 STATS</h3>
                 <div className="space-y-4">
-                  <div className="flex justify-between">
-                    <span className="text-stone-400">Current Level</span>
-                    <span className="text-white font-medium">HSK {progress?.hskLevel || 1}</span>
+                  {/* HSK Level */}
+                  <div className="bg-gradient-to-r from-blue-500/20 to-cyan-600/20 rounded-xl p-4 border border-blue-500/30">
+                    <p className="text-stone-400 text-xs font-medium mb-1">Current Level</p>
+                    <p className="text-blue-300 font-bold text-2xl">HSK {progress?.hskLevel || 1}</p>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-stone-400">Current Streak</span>
-                    <span className="text-white font-medium">{progress?.currentStreak || 0} days</span>
+
+                  {/* Current Streak */}
+                  <div className="bg-gradient-to-r from-orange-500/20 to-red-600/20 rounded-xl p-4 border border-orange-500/30">
+                    <p className="text-stone-400 text-xs font-medium mb-1">Current Streak</p>
+                    <p className="text-orange-300 font-bold text-2xl">{progress?.currentStreak || 0} 🔥</p>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-stone-400">Words Learned</span>
-                    <span className="text-white font-medium">{progress?.totalWords || 0}</span>
+
+                  {/* Words Learned */}
+                  <div className="bg-gradient-to-r from-purple-500/20 to-pink-600/20 rounded-xl p-4 border border-purple-500/30">
+                    <p className="text-stone-400 text-xs font-medium mb-1">Words Learned</p>
+                    <p className="text-purple-300 font-bold text-2xl">{progress?.totalWords || 0}</p>
                   </div>
                 </div>
               </div>

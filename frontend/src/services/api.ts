@@ -188,6 +188,44 @@ export const goalsAPI = {
     const response = await api.post(`/goals/${goalId}/progress`, { current });
     return response.data;
   },
+
+  deleteGoal: async (goalId: string) => {
+    const response = await api.delete(`/goals/${goalId}`);
+    return response.data;
+  },
+};
+
+// Adaptive Learning API
+export const adaptiveAPI = {
+  getMetrics: async () => {
+    const response = await api.get('/adaptive/metrics');
+    return response.data;
+  },
+
+  getForgetCurve: async () => {
+    const response = await api.get('/adaptive/forgetting-curve');
+    return response.data;
+  },
+
+  getRecommendations: async () => {
+    const response = await api.get('/adaptive/recommendations');
+    return response.data;
+  },
+
+  adjustLevel: async () => {
+    const response = await api.get('/adaptive/adjust-level');
+    return response.data;
+  },
+
+  getInsights: async () => {
+    const response = await api.get('/adaptive/insights');
+    return response.data;
+  },
+
+  getDashboard: async () => {
+    const response = await api.get('/adaptive/dashboard');
+    return response.data;
+  },
 };
 
 export default api;

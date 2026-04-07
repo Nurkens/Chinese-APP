@@ -1,0 +1,9 @@
+-- AlterTable
+ALTER TABLE "user_words" ADD COLUMN     "easeFactor" DOUBLE PRECISION NOT NULL DEFAULT 2.5,
+ADD COLUMN     "interval" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "lastReviewDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN     "nextReviewDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ADD COLUMN     "repetitions" INTEGER NOT NULL DEFAULT 0;
+
+-- CreateIndex
+CREATE INDEX "user_words_userId_nextReviewDate_idx" ON "user_words"("userId", "nextReviewDate");

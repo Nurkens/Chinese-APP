@@ -11,6 +11,7 @@ import { TutorModule } from './tutor/tutor.module';
 import { GachaModule } from './gacha/gacha.module';
 import { SRSModule } from './srs/srs.module';
 import { FriendsModule } from './friends/friends.module';
+import { AdaptiveModule } from './adaptive/adaptive.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { FriendsModule } from './friends/friends.module';
     GachaModule,
     SRSModule,
     FriendsModule,
+    AdaptiveModule,
   ],
   controllers: [AppController],
   providers: [AppService],
