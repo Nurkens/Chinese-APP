@@ -27,6 +27,7 @@ import '@ionic/react/css/palettes/dark.system.css';
 /* Theme variables */
 import './theme/variables.css';
 import { TutorProvider } from './contexts/TutorContext';
+import { XiaomeiProvider } from './contexts/XiaomeiContext';
 import FloatingXiaomei from './components/FloatingXiaomei';
 setupIonicReact();
 
@@ -34,17 +35,18 @@ const App: React.FC = () => (
   <IonApp>
     <ProgressProvider>
       <TutorProvider>
-        {}
-        <FloatingXiaomei /> 
-        
-        <IonReactRouter>
-          <IonRouterOutlet>
-            <Route path="/welcome" element={<WelcomeScreen />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/auth/callback" element={<AuthCallback />} />
-            <Route path="/" element={<Navigate to="/welcome" replace />} />
-          </IonRouterOutlet>
-        </IonReactRouter>
+        <XiaomeiProvider>
+          <FloatingXiaomei /> 
+          
+          <IonReactRouter>
+            <IonRouterOutlet>
+              <Route path="/welcome" element={<WelcomeScreen />} />
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
+              <Route path="/" element={<Navigate to="/welcome" replace />} />
+            </IonRouterOutlet>
+          </IonReactRouter>
+        </XiaomeiProvider>
       </TutorProvider>
     </ProgressProvider>
   </IonApp>

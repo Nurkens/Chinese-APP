@@ -84,19 +84,19 @@ const WelcomeScreen: React.FC = () => {
 
   // Error notification component
   const ErrorNotification = ({ message, onDismiss }: { message: string; onDismiss?: () => void }) => (
-    <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3 animate-shake">
-      <div className="flex-shrink-0 w-5 h-5 text-red-500 mt-0.5">
+    <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start gap-3 animate-shake">
+      <div className="flex-shrink-0 w-5 h-5 text-red-400 mt-0.5">
         <svg viewBox="0 0 20 20" fill="currentColor">
           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
         </svg>
       </div>
       <div className="flex-1">
-        <p className="text-red-700 text-sm font-medium">{message}</p>
+        <p className="text-red-300 text-sm font-medium">{message}</p>
       </div>
       {onDismiss && (
         <button
           onClick={onDismiss}
-          className="flex-shrink-0 text-red-400 hover:text-red-600 transition-colors"
+          className="flex-shrink-0 text-red-400/60 hover:text-red-300 transition-colors"
         >
           <svg className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
@@ -109,10 +109,10 @@ const WelcomeScreen: React.FC = () => {
   // If showing login form
   if (showLogin) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-amber-50 via-orange-50 to-rose-100 p-4">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
-          <div className="bg-white rounded-3xl shadow-2xl p-8">
-            <h2 className="text-2xl font-light text-amber-900 mb-6 text-center">Log In</h2>
+          <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl p-8 border border-slate-700/50 shadow-2xl">
+            <h2 className="text-2xl font-bold text-white mb-8 text-center">Log In</h2>
             {error && <ErrorNotification message={error} onDismiss={() => setError('')} />}
             <form onSubmit={handleLogin} className="space-y-4">
               <input
@@ -120,7 +120,7 @@ const WelcomeScreen: React.FC = () => {
                 placeholder="Username"
                 value={loginForm.username}
                 onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl border border-amber-200 focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-3 rounded-lg border border-slate-600 bg-slate-700/30 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 required
               />
               <input
@@ -128,20 +128,20 @@ const WelcomeScreen: React.FC = () => {
                 placeholder="Password"
                 value={loginForm.password}
                 onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl border border-amber-200 focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-3 rounded-lg border border-slate-600 bg-slate-700/30 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 required
               />
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-primary hover:bg-primary/90 text-white font-medium py-4 rounded-2xl shadow-lg transition-all disabled:opacity-50"
+                className="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 rounded-lg transition-all disabled:opacity-50"
               >
                 {loading ? 'Logging in...' : 'Log In'}
               </button>
               <button
                 type="button"
                 onClick={() => setShowLogin(false)}
-                className="w-full text-amber-900/70 font-light py-2 hover:text-amber-900"
+                className="w-full text-slate-400 hover:text-slate-300 font-medium py-2 transition-colors"
               >
                 Back
               </button>
@@ -155,10 +155,10 @@ const WelcomeScreen: React.FC = () => {
   // If showing signup form
   if (showSignup) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-amber-50 via-orange-50 to-rose-100 p-4">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
-          <div className="bg-white rounded-3xl shadow-2xl p-8">
-            <h2 className="text-2xl font-light text-amber-900 mb-6 text-center">Sign Up</h2>
+          <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl p-8 border border-slate-700/50 shadow-2xl">
+            <h2 className="text-2xl font-bold text-white mb-8 text-center">Sign Up</h2>
             {error && <ErrorNotification message={error} onDismiss={() => setError('')} />}
             <form onSubmit={handleSignup} className="space-y-4">
               <input
@@ -166,7 +166,7 @@ const WelcomeScreen: React.FC = () => {
                 placeholder="Username"
                 value={signupForm.username}
                 onChange={(e) => setSignupForm({ ...signupForm, username: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl border border-amber-200 focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-3 rounded-lg border border-slate-600 bg-slate-700/30 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 required
               />
               <input
@@ -174,7 +174,7 @@ const WelcomeScreen: React.FC = () => {
                 placeholder="Email"
                 value={signupForm.email}
                 onChange={(e) => setSignupForm({ ...signupForm, email: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl border border-amber-200 focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-3 rounded-lg border border-slate-600 bg-slate-700/30 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 required
               />
               <input
@@ -182,20 +182,20 @@ const WelcomeScreen: React.FC = () => {
                 placeholder="Password"
                 value={signupForm.password}
                 onChange={(e) => setSignupForm({ ...signupForm, password: e.target.value })}
-                className="w-full px-4 py-3 rounded-xl border border-amber-200 focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-3 rounded-lg border border-slate-600 bg-slate-700/30 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 required
               />
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-primary hover:bg-primary/90 text-white font-medium py-4 rounded-2xl shadow-lg transition-all disabled:opacity-50"
+                className="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 rounded-lg transition-all disabled:opacity-50"
               >
                 {loading ? 'Creating account...' : 'Sign Up'}
               </button>
               <button
                 type="button"
                 onClick={() => setShowSignup(false)}
-                className="w-full text-amber-900/70 font-light py-2 hover:text-amber-900"
+                className="w-full text-slate-400 hover:text-slate-300 font-medium py-2 transition-colors"
               >
                 Back
               </button>
@@ -206,118 +206,80 @@ const WelcomeScreen: React.FC = () => {
     );
   }
 
-  // Main welcome screen - Desktop Layout
+  // Main welcome screen - Clean & Beautiful Design
   return (
-    <div className="min-h-screen bg-linear-to-br from-amber-50 via-orange-50 to-rose-100">
-      {/* Decorative elements */}
-      <div className="absolute top-20 left-20 w-64 h-64 bg-green-600/10 rounded-full blur-3xl"></div>
-      <div className="absolute top-40 right-32 w-96 h-96 bg-green-500/10 rounded-full blur-3xl"></div>
-      <div className="absolute bottom-20 left-1/4 w-80 h-80 bg-orange-400/10 rounded-full blur-3xl"></div>
-
-      <div className="relative min-h-screen flex">
-        {/* Left Side - Branding & Image */}
-        <div className="hidden lg:flex lg:w-1/2 flex-col items-center justify-center p-12">
-          <div className="text-center mb-12">
-            <h1 className="text-6xl font-light tracking-widest text-amber-900 mb-4">
-              JOURNEY OF WORDS
-            </h1>
-            <p className="text-xl text-amber-800/80 font-light">
-              Learn Chinese with <span className="italic">peace</span> and <span className="italic">joy</span>
-            </p>
-          </div>
-
-          {/* Panda Character */}
-          <div className="relative">
-            <div className="absolute inset-0 bg-orange-300/30 rounded-full blur-3xl scale-150"></div>
-            <div className="relative w-96 h-96 bg-white rounded-full shadow-2xl flex items-center justify-center">
-              <div className="text-center">
-                <div className="text-9xl mb-4">🐼</div>
-                <div className="text-4xl">🙏</div>
-              </div>
-            </div>
-          </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <div className="mb-6 text-6xl">🐼</div>
+          <h1 className="text-4xl font-bold text-white mb-2">Journey of Words</h1>
+          <p className="text-slate-400 text-sm">Master Chinese characters with ease</p>
         </div>
 
-        {/* Right Side - Auth Form */}
-        <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
-          <div className="w-full max-w-md">
-            {/* Mobile Title - shown only on small screens */}
-            <div className="lg:hidden text-center mb-8">
-              <h1 className="text-4xl font-light tracking-widest text-amber-900 mb-2">
-                JOURNEY OF WORDS
-              </h1>
-              <p className="text-sm text-amber-800/80 font-light">
-                Learn Chinese with <span className="italic">peace</span> and <span className="italic">joy</span>
-              </p>
-            </div>
+        {/* Main Card */}
+        <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl p-8 border border-slate-700/50 shadow-2xl">
+          {displayError && (
+            <ErrorNotification
+              message={displayError}
+              onDismiss={() => {
+                setError('');
+                clearGoogleError();
+              }}
+            />
+          )}
 
-            <div className="bg-white/80 backdrop-blur-xl rounded-3xl shadow-2xl p-10">
-              <h2 className="text-3xl font-light text-amber-900 mb-8 text-center">Welcome Back</h2>
+          <div className="space-y-3">
+            {/* Log In Button */}
+            <button
+              onClick={() => setShowLogin(true)}
+              disabled={loading}
+              className="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 hover:shadow-lg disabled:opacity-50"
+            >
+              Log In
+            </button>
 
-              {displayError && (
-                <ErrorNotification
-                  message={displayError}
-                  onDismiss={() => {
-                    setError('');
-                    clearGoogleError();
-                  }}
-                />
-              )}
+            {/* Sign Up Button */}
+            <button
+              onClick={() => setShowSignup(true)}
+              disabled={loading}
+              className="w-full bg-slate-700 hover:bg-slate-600 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 border border-slate-600 disabled:opacity-50"
+            >
+              Sign Up
+            </button>
 
-              <div className="space-y-4">
-                {/* Log In Button */}
-                <button
-                  onClick={() => setShowLogin(true)}
-                  disabled={loading}
-                  className="w-full bg-primary hover:bg-primary/90 text-white font-medium py-4 px-6 rounded-xl shadow-lg transition-all duration-200 hover:shadow-xl disabled:opacity-50"
-                >
-                  Log In
-                </button>
-
-                {/* Sign Up Button */}
-                <button
-                  onClick={() => setShowSignup(true)}
-                  disabled={loading}
-                  className="w-full bg-white hover:bg-gray-50 text-primary border-2 border-primary font-medium py-4 px-6 rounded-xl shadow-lg transition-all duration-200 hover:shadow-xl disabled:opacity-50"
-                >
-                  Sign Up
-                </button>
-
-                {/* Divider */}
-                <div className="relative py-4">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-amber-300"></div>
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-4 bg-white text-amber-600">or</span>
-                  </div>
-                </div>
-
-                {/* Google Login Button - GSI rendered button */}
-                <div
-                  ref={googleButtonRef}
-                  className="w-full flex justify-center"
-                  style={{ minHeight: '44px' }}
-                ></div>
-
-                {/* Continue as Guest */}
-                <button
-                  onClick={handleGuestLogin}
-                  disabled={loading}
-                  className="w-full flex items-center justify-center gap-2 text-amber-900/70 font-light py-3 hover:text-amber-900 transition-colors disabled:opacity-50 hover:bg-amber-50 rounded-xl"
-                >
-                  <span className="text-xl">👤</span>
-                  <span>{loading ? 'Loading...' : 'Continue as Guest'}</span>
-                </button>
+            {/* Divider */}
+            <div className="relative py-3">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-600"></div>
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="px-3 bg-slate-800/50 text-slate-400">or</span>
               </div>
             </div>
 
-            {/* Footer text */}
-            <p className="text-center text-amber-800/60 text-sm mt-6">
-              Start your Chinese learning journey today
-            </p>
+            {/* Google Login Button */}
+            <div
+              ref={googleButtonRef}
+              className="w-full flex justify-center"
+              style={{ minHeight: '44px' }}
+            ></div>
+
+            {/* Continue as Guest */}
+            <button
+              onClick={handleGuestLogin}
+              disabled={loading}
+              className="w-full text-slate-300 hover:text-white font-medium py-3 px-6 rounded-lg transition-colors disabled:opacity-50 hover:bg-slate-700/30"
+            >
+              {loading ? '⏳ Loading...' : '👤 Continue as Guest'}
+            </button>
           </div>
         </div>
+
+        {/* Footer */}
+        <p className="text-center text-slate-500 text-xs mt-8">
+          Begin your Chinese learning journey today
+        </p>
       </div>
 
       {/* Add shake animation style */}

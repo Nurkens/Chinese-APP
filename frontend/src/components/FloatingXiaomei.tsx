@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useXiaomei } from '../contexts/XiaomeiContext';
+import AITutor from './anime/AITutor/AITutor';
 
 const FloatingXiaomei: React.FC = () => {
   const [mounted, setMounted] = useState(false);
   const [showBubble, setShowBubble] = useState(true);
-  const { currentMessage, showMessage } = useXiaomei();
+  const { currentMessage, showMessage, showTutorModal, setShowTutorModal } = useXiaomei();
 
   useEffect(() => {
     setMounted(true);
@@ -18,6 +19,9 @@ const FloatingXiaomei: React.FC = () => {
   const xiaomeiSrc = `${import.meta.env.BASE_URL}xiaomei.png`;
 
   if (!mounted) return null;
+
+  // Get user ID from localStorage or use guest
+  const userId = localStorage.getItem('userId') || 'guest';
 
   return createPortal(
     <div 
@@ -63,7 +67,10 @@ const FloatingXiaomei: React.FC = () => {
         style={{ pointerEvents: 'auto', cursor: 'pointer' }}
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
-        onClick={() => setShowBubble(!showBubble)}
+        onClick={() => {
+          setShowTutorModal(true);
+          setShowBubble(false);
+        }}
       >
         <img
             src={xiaomeiSrc}
@@ -85,4 +92,49 @@ const FloatingXiaomei: React.FC = () => {
   );
 };
 
-export default FloatingXiaomei;
+// Also handle rendering the AITutor modal at document root
+const AITutorModal: React.FC = () => {
+  const { showTutorModal, setShowTutorModal } = useXiaomei();
+  const [mounted, setMounted] = useState(false);
+  const userId = localStorage.getItem('userId') || 'guest';
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <AnimatePresence>
+      {showTutorModal && (
+        <motion.div
+          key="tutor-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
+          <AITutor
+            userId={userId}
+            initialBackground="classroom"
+            onClose={() => {
+              setShowTutorModal(false);
+            }}
+          />
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body
+  );
+};
+
+// Export both components
+export const FloatingXiaomeiWithModal: React.FC = () => {
+  return (
+    <>
+      <FloatingXiaomei />
+      <AITutorModal />
+    </>
+  );
+};
+
+export default FloatingXiaomeiWithModal;

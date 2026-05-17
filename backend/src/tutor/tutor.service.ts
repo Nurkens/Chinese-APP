@@ -1,20 +1,23 @@
 /**
  * 🤖 Tutor Service
  *
- * AI-powered Chinese tutor with mock responses.
+ * AI-powered Chinese tutor with automatic intelligent responses.
  * Returns structured responses with hanzi, pinyin, translation, feedback, and emotion.
- *
- * NOTE: OpenAI integration temporarily disabled due to package installation issues.
- * Service currently uses intelligent mock responses based on pattern matching.
- *
- * To enable OpenAI later:
- * 1. npm install openai --force
- * 2. Uncomment OpenAI import and implementation below
- * 3. Add OPENAI_API_KEY to .env
+ * 
+ * AUTOMATIC AI SUPPORT:
+ * 1. OpenAI (Recommended):
+ *    - Add OPENAI_API_KEY=sk-... to .env for real AI responses
+ *    - Provides intelligent, context-aware answers
+ * 
+ * 2. Smart Mock Responses (Automatic Fallback):
+ *    - 50+ intelligent pattern-matching responses
+ *    - Works instantly without any setup
+ *    - Perfect for development and testing
  */
 
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import OpenAI from 'openai';
 
 export interface TutorResponse {
   hanzi: string;
@@ -32,9 +35,19 @@ export interface ChatMessage {
 @Injectable()
 export class TutorService {
   private conversationHistory: Map<string, ChatMessage[]> = new Map();
+  private openai: OpenAI | null = null;
 
   constructor(private configService: ConfigService) {
-    console.log('✅ Tutor Service initialized (using mock responses)');
+    // Check for OpenAI API key
+    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
+    
+    if (apiKey && apiKey.trim()) {
+      this.openai = new OpenAI({ apiKey });
+      console.log('✅ Tutor: Using OpenAI GPT-3.5-turbo for intelligent responses');
+    } else {
+      console.log('📚 Tutor: Using smart mock responses (no OPENAI_API_KEY set)');
+      console.log('   💡 Tip: Add OPENAI_API_KEY=sk-... to .env for real AI');
+    }
   }
 
   /**
@@ -44,18 +57,50 @@ export class TutorService {
     // Get or create conversation history
     let history = this.conversationHistory.get(userId);
     if (!history) {
-      history = [];
+      history = [
+        {
+          role: 'system',
+          content: `You are Xiaomei (小美), a friendly and encouraging Chinese language tutor. 
+          When a user asks you a question:
+          1. Answer their question in a helpful, friendly way
+          2. If their question is about Chinese, provide the hanzi (character), pinyin (pronunciation), and English translation
+          3. Always encourage them with "加油!" (come on/you can do it!)
+          4. Keep responses concise and engaging
+          
+          Format your response as JSON with these exact fields:
+          {
+            "hanzi": "relevant hanzi or empty string",
+            "pinyin": "romanized pronunciation or empty string", 
+            "translation": "English meaning or empty string",
+            "feedback": "Your helpful response to their question",
+            "emotion": "joy|study|surprised|neutral|thinking"
+          }`,
+        },
+      ];
       this.conversationHistory.set(userId, history);
     }
 
     // Add user message to history
-    history.push({
+    const userMessage: ChatMessage = {
       role: 'user',
       content: message,
-    });
+    };
+    history.push(userMessage);
 
-    // Generate mock response
-    const response = this.getMockResponse(message);
+    let response: TutorResponse;
+
+    // Try OpenAI first, fallback to smart mock responses
+    try {
+      if (this.openai) {
+        response = await this.getOpenAIResponse(history);
+      } else {
+        response = this.getMockResponse(message);
+      }
+    } catch (error) {
+      console.error('AI error:', error);
+      // Always fall back to intelligent mock response
+      response = this.getMockResponse(message);
+    }
 
     // Add assistant response to history
     history.push({
@@ -70,6 +115,63 @@ export class TutorService {
     }
 
     return response;
+  }
+
+  /**
+   * Get response from OpenAI GPT-3.5-turbo
+   */
+  private async getOpenAIResponse(conversationHistory: ChatMessage[]): Promise<TutorResponse> {
+    if (!this.openai) {
+      throw new Error('OpenAI not initialized');
+    }
+
+    // Filter messages for API
+    const messagesForAPI = conversationHistory.map((msg) => ({
+      role: msg.role as 'system' | 'user' | 'assistant',
+      content: msg.content,
+    }));
+
+    const completion = await this.openai.chat.completions.create({
+      model: 'gpt-3.5-turbo',
+      messages: messagesForAPI,
+      response_format: { type: 'json_object' },
+      temperature: 0.7,
+      max_tokens: 500,
+    });
+
+    const content = completion.choices[0].message.content;
+    if (!content) {
+      throw new Error('Empty response from OpenAI');
+    }
+
+    try {
+      const parsed = JSON.parse(content);
+      return {
+        hanzi: parsed.hanzi || '',
+        pinyin: parsed.pinyin || '',
+        translation: parsed.translation || '',
+        feedback: parsed.feedback || 'I understand! Keep practicing!',
+        emotion: this.mapEmotion(parsed.emotion) || 'neutral',
+      };
+    } catch (parseError) {
+      console.error('Failed to parse OpenAI response:', content);
+      return {
+        hanzi: '',
+        pinyin: '',
+        translation: '',
+        feedback: content.substring(0, 500),
+        emotion: 'neutral',
+      };
+    }
+  }
+
+  /**
+   * Map emotion to valid type
+   */
+  private mapEmotion(emotion: string): TutorResponse['emotion'] {
+    const validEmotions: TutorResponse['emotion'][] = ['joy', 'study', 'surprised', 'neutral', 'thinking'];
+    const lowerEmotion = emotion?.toLowerCase() || '';
+    return validEmotions.find((e) => lowerEmotion.includes(e)) || 'neutral';
   }
 
   /**

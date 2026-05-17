@@ -1,0 +1,57 @@
+# Render.com deployment configuration for both frontend and backend
+# This file helps automate the deployment process
+
+services:
+  - type: web
+    name: chinese-app-backend
+    env: docker
+    repo: https://github.com/YOUR_USERNAME/YOUR_REPO_URL  # Заменить на ваш URL
+    branch: main
+    rootDir: backend
+    dockerfilePath: Dockerfile
+    plan: starter  # Измените на paid для production
+    regions:
+      - iad  # US East
+      - fra  # Frankfurt
+      - sgp  # Singapore
+      - syd  # Sydney
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        syncWith: chinese-app-db
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PORT
+        value: 3000
+      - key: GOOGLE_CLIENT_ID
+        scope: backend
+      - key: GOOGLE_CLIENT_SECRET
+        scope: backend
+      - key: GOOGLE_CALLBACK_URL
+        value: https://chinese-app-backend.onrender.com/auth/google/callback
+      - key: FRONTEND_URL
+        value: https://chinese-app.vercel.app
+      - key: OPENAI_API_KEY
+        scope: backend
+
+  - type: pserv
+    name: chinese-app-db
+    ipAllowList: []
+    plan: starter
+    region: iad
+    postgresMajorVersion: 15
+    databases:
+      - name: chinese_app
+        user: postgres
+
+  - type: web
+    name: chinese-app-frontend
+    env: static
+    buildCommand: npm run build
+    startCommand: npx serve -s dist
+    staticPublishPath: ./dist
+    plan: free
+    envVars:
+      - key: VITE_API_URL
+        value: https://chinese-app-backend.onrender.com
