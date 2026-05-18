@@ -38,16 +38,224 @@ export class TutorService {
   private openai: OpenAI | null = null;
 
   constructor(private configService: ConfigService) {
-    // Check for OpenAI API key
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
     
     if (apiKey && apiKey.trim()) {
       this.openai = new OpenAI({ apiKey });
-      console.log('✅ Tutor: Using OpenAI GPT-3.5-turbo for intelligent responses');
+      console.log('✅ Tutor: Using OpenAI GPT-3.5-turbo');
     } else {
-      console.log('📚 Tutor: Using smart mock responses (no OPENAI_API_KEY set)');
-      console.log('   💡 Tip: Add OPENAI_API_KEY=sk-... to .env for real AI');
+      console.log('📚 Tutor: Using improved AI with varied responses');
+      console.log('   💡 Tip: Add OPENAI_API_KEY=sk-... to .env for real OpenAI');
     }
+  }
+
+  /**
+   * Initialize Ollama knowledge base with embeddings
+   */
+  private async initializeOllamaKnowledgeBase(): Promise<void> {
+    const knowledgeTexts = [
+      // Greetings
+      '你好 (nǐ hǎo) - Hello. Most common greeting in Chinese, literally "you good".',
+      '你好吗 (nǐ hǎo ma) - How are you? Polite greeting asking how someone is doing.',
+      '早上好 (zǎo shang hǎo) - Good morning. Greet in the morning.',
+      '晚上好 (wǎn shang hǎo) - Good evening. Evening greeting.',
+      '晚安 (wǎn ān) - Good night. Before sleep.',
+      '你好呀 (nǐ hǎo ya) - Hey there! Casual friendly greeting.',
+      
+      // Politeness
+      '谢谢 (xiè xie) - Thank you. Say 谢 twice for emphasis!',
+      '不用谢 (bú yòng xiè) - You\'re welcome.',
+      '对不起 (duì bu qǐ) - I\'m sorry / Excuse me.',
+      '不好意思 (bu hǎo yì si) - Embarrassed / Excuse me casually.',
+      '请 (qǐng) - Please. Add before requests.',
+      '好的 (hǎo de) - OK / Alright.',
+      
+      // Numbers
+      '一 (yī) - One',
+      '二 (èr) - Two',
+      '三 (sān) - Three',
+      '四 (sì) - Four',
+      '五 (wǔ) - Five',
+      '六 (liù) - Six',
+      '七 (qī) - Seven',
+      '八 (bā) - Eight',
+      '九 (jiǔ) - Nine',
+      '十 (shí) - Ten',
+      '一百 (yī bǎi) - One hundred',
+      '一千 (yī qiān) - One thousand',
+      
+      // Verbs
+      '吃 (chī) - To eat',
+      '吃饭 (chī fàn) - Have a meal',
+      '你吃饭了吗 (nǐ chī fàn le ma) - Have you eaten? (Common Chinese greeting)',
+      '喝 (hē) - To drink',
+      '睡觉 (shuì jiào) - To sleep',
+      '学习 (xué xí) - To study / To learn',
+      '说 (shuō) - To speak / To say',
+      '听 (tīng) - To listen',
+      '读 (dú) - To read',
+      '写 (xiě) - To write',
+      '想 (xiǎng) - To want / To think',
+      '去 (qù) - To go',
+      '来 (lái) - To come',
+      '做 (zuò) - To do / To make',
+      
+      // Emotions
+      '开心 (kāi xin) - Happy. Literally "open heart".',
+      '伤心 (shāng xin) - Sad',
+      '生气 (shēng qì) - Angry',
+      '我很好 (wǒ hěn hǎo) - I\'m doing very well',
+      '我不好 (wǒ bu hǎo) - I\'m not doing well',
+      '累 (leì) - Tired',
+      '高兴 (gāo xìng) - Happy / Delighted',
+      
+      // Questions  
+      '什么 (shén me) - What',
+      '哪里 (nǎ li) - Where',
+      '谁 (shuí) - Who',
+      '为什么 (wèi shén me) - Why',
+      '怎么样 (zěn me yàng) - How is it?',
+      '怎么 (zěn me) - How',
+      '几 (jǐ) - How many',
+      
+      // Family
+      '家 (jiā) - Home / Family',
+      '妈妈 (māma) - Mother',
+      '爸爸 (bàba) - Father',
+      '哥哥 (gē ge) - Older brother',
+      '姐姐 (jiě jie) - Older sister',
+      '弟弟 (dì di) - Younger brother',
+      '妹妹 (mèi mei) - Younger sister',
+      '朋友 (péng you) - Friend',
+      
+      // Objects/Things
+      '水 (shuǐ) - Water',
+      '茶 (chá) - Tea',
+      '书 (shū) - Book',
+      '笔 (bǐ) - Pen',
+      '电脑 (diàn nǎo) - Computer',
+      '手机 (shǒu jī) - Mobile phone',
+      '房间 (fáng jiān) - Room',
+      '学校 (xué xiào) - School',
+      
+      // Motivation & Encouragement
+      '加油 (jiā yóu) - Keep going! / You can do it! (literally "add oil")',
+      '太好了 (tài hǎo le) - Excellent! / That\'s great!',
+      '不错 (bu cuò) - Not bad! / Pretty good!',
+      '继续 (jì xù) - Continue / Keep on',
+      '坚持 (jiān chí) - Persist / Keep at it',
+      '你很棒 (nǐ hěn bàng) - You\'re great!',
+      
+      // Love & Affection
+      '我爱你 (wǒ ài nǐ) - I love you',
+      '喜欢 (xǐ huan) - To like / To enjoy',
+      '我喜欢你 (wǒ xǐ huan nǐ) - I like you',
+      
+      // Time
+      '现在 (xiàn zài) - Now',
+      '今天 (jīn tiān) - Today',
+      '明天 (míng tiān) - Tomorrow',
+      '昨天 (zuó tiān) - Yesterday',
+      '早上 (zǎo shang) - Morning',
+      '晚上 (wǎn shang) - Evening',
+      '中午 (zhōng wǔ) - Noon',
+      
+      // Adjectives  
+      '大 (dà) - Big / Large',
+      '小 (xiǎo) - Small',
+      '好 (hǎo) - Good',
+      '坏 (huài) - Bad',
+      '新 (xīn) - New',
+      '旧 (jiù) - Old',
+      '快 (kuài) - Fast',
+      '慢 (màn) - Slow',
+      '热 (rè) - Hot',
+      '冷 (lěng) - Cold',
+    ];
+
+    console.log('🔄 Generating vector embeddings for knowledge base...');
+    for (const text of knowledgeTexts) {
+      try {
+        const embedding = await this.getOllamaEmbedding(text);
+        this.knowledgeBase.push({ text, embedding });
+      } catch (error) {
+        // Silently skip if embedding fails
+      }
+    }
+    console.log(`✅ Knowledge base ready: ${this.knowledgeBase.length}/${knowledgeTexts.length} entries embedded`);
+    console.log('💡 Ollama using semantic search for context-aware responses');
+  }
+
+  /**
+   * Get embedding from Ollama
+   */
+  private getOllamaEmbedding(text: string): Promise<number[]> {
+    return new Promise((resolve, reject) => {
+      const payload = JSON.stringify({
+        model: 'nomic-embed-text',
+        prompt: text,
+      });
+
+      const options = {
+        hostname: 'localhost',
+        port: 11434,
+        path: '/api/embeddings',
+        method: 'POST' as const,
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload),
+        },
+      };
+
+      const req = http.request(options, (res) => {
+        let data = '';
+        res.on('data', (chunk) => (data += chunk));
+        res.on('end', () => {
+          try {
+            const result = JSON.parse(data);
+            resolve(result.embedding || []);
+          } catch (error) {
+            reject(error);
+          }
+        });
+      });
+
+      req.on('error', reject);
+      req.write(payload);
+      req.end();
+    });
+  }
+
+  /**
+   * Semantic search using cosine similarity
+   */
+  private async semanticSearch(query: string, topK: number = 5): Promise<string[]> {
+    try {
+      const queryEmbedding = await this.getOllamaEmbedding(query);
+      
+      const similarities = this.knowledgeBase.map((item) => ({
+        text: item.text,
+        similarity: this.cosineSimilarity(queryEmbedding, item.embedding),
+      }));
+
+      return similarities
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, topK)
+        .map((item) => item.text);
+    } catch (error) {
+      return [];
+    }
+  }
+
+  /**
+   * Cosine similarity calculation
+   */
+  private cosineSimilarity(a: number[], b: number[]): number {
+    if (a.length !== b.length) return 0;
+    const dotProduct = a.reduce((sum, val, i) => sum + val * b[i], 0);
+    const normA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
+    const normB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
+    return normA && normB ? dotProduct / (normA * normB) : 0;
   }
 
   /**
@@ -57,39 +265,40 @@ export class TutorService {
     // Get or create conversation history
     let history = this.conversationHistory.get(userId);
     if (!history) {
+      const systemPrompt = `You are Xiaomei (小美), a friendly and encouraging Chinese language tutor.
+When a user asks you something:
+1. First, check if the question is about learning Chinese
+2. If it is, provide relevant Chinese words/phrases with hanzi, pinyin, and translation
+3. Always be warm, supportive, and use emojis
+4. Provide teaching tips and practical examples
+5. Encourage with phrases like 加油! (keep going!)
+
+Respond ONLY as JSON with these exact fields:
+{
+  "hanzi": "relevant Chinese characters or empty string",
+  "pinyin": "pinyin pronunciation or empty string",
+  "translation": "English translation or empty string",
+  "feedback": "Your teaching response, tips, and encouragement",
+  "emotion": "joy|study|surprised|neutral|thinking"
+}`;
+
       history = [
         {
           role: 'system',
-          content: `You are Xiaomei (小美), a friendly and encouraging Chinese language tutor. 
-          When a user asks you a question:
-          1. Answer their question in a helpful, friendly way
-          2. If their question is about Chinese, provide the hanzi (character), pinyin (pronunciation), and English translation
-          3. Always encourage them with "加油!" (come on/you can do it!)
-          4. Keep responses concise and engaging
-          
-          Format your response as JSON with these exact fields:
-          {
-            "hanzi": "relevant hanzi or empty string",
-            "pinyin": "romanized pronunciation or empty string", 
-            "translation": "English meaning or empty string",
-            "feedback": "Your helpful response to their question",
-            "emotion": "joy|study|surprised|neutral|thinking"
-          }`,
+          content: systemPrompt,
         },
       ];
       this.conversationHistory.set(userId, history);
     }
 
-    // Add user message to history
-    const userMessage: ChatMessage = {
+    // Add user message
+    history.push({
       role: 'user',
       content: message,
-    };
-    history.push(userMessage);
+    });
 
     let response: TutorResponse;
 
-    // Try OpenAI first, fallback to smart mock responses
     try {
       if (this.openai) {
         response = await this.getOpenAIResponse(history);
@@ -98,7 +307,6 @@ export class TutorService {
       }
     } catch (error) {
       console.error('AI error:', error);
-      // Always fall back to intelligent mock response
       response = this.getMockResponse(message);
     }
 
@@ -174,174 +382,461 @@ export class TutorService {
     return validEmotions.find((e) => lowerEmotion.includes(e)) || 'neutral';
   }
 
+
   /**
-   * Mock response for development/fallback
+   * Fallback response when AI fails
+   */
+  private getFallbackResponse(message: string): TutorResponse {
+    const responses = [
+      {
+        hanzi: '加油',
+        pinyin: 'jiā yóu',
+        translation: 'Keep going!',
+        feedback: `That\'s a great question about learning Chinese! 加油 (jiā yóu) means "keep going!" - my favorite phrase! Keep practicing! 加油!`,
+        emotion: 'study' as const,
+      },
+      {
+        hanzi: '学习',
+        pinyin: 'xué xí',
+        translation: 'To study/learn',
+        feedback: 'Learning Chinese is an amazing journey! 学习 (xué xí) means to study. Be consistent, practice daily, and celebrate your progress! 加油!',
+        emotion: 'joy' as const,
+      },
+      {
+        hanzi: '太好了',
+        pinyin: 'tài hǎo le',
+        translation: 'Excellent!',
+        feedback: 'You\'re doing fantastic! Your curiosity about Chinese is wonderful. Keep asking questions - that\'s how we learn best! 加油!',
+        emotion: 'surprised' as const,
+      },
+    ];
+
+    return responses[Math.floor(Math.random() * responses.length)];
+  }
+
+  /**
+   * Mock response for development/fallback - IMPROVED with variation
    */
   private getMockResponse(userMessage: string): TutorResponse {
     const lowerMessage = userMessage.toLowerCase();
 
+    // Helper to pick random element
+    const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+
     // Greetings
-    if (lowerMessage.includes('hello') || lowerMessage.includes('hi') || lowerMessage.includes('你好')) {
-      return {
-        hanzi: '你好',
-        pinyin: 'nǐ hǎo',
-        translation: 'Hello',
-        feedback: 'Awesome! 你好 (nǐ hǎo) means hello! It\'s the first word everyone learns. Want to learn more greetings? 加油!',
-        emotion: 'joy',
-      };
+    if (lowerMessage.match(/\b(hello|hi|hey|你好|嗨)\b/)) {
+      const variations = [
+        {
+          hanzi: '你好',
+          pinyin: 'nǐ hǎo',
+          translation: 'Hello',
+          feedback: pick([
+            '你好! (nǐ hǎo) means hello - literally "you good"! Such a nice greeting. How are you today? 加油!',
+            'Hello! 你好 (nǐ hǎo) is the most common greeting in Chinese. Use it with friends and strangers alike! 加油!',
+            '你好! That\'s a perfect greeting! You\'re already speaking Chinese like a native! Keep it up! 加油!',
+          ]),
+          emotion: 'joy' as const,
+        },
+        {
+          hanzi: '你好呀',
+          pinyin: 'nǐ hǎo ya',
+          translation: 'Hey there!',
+          feedback: pick([
+            '你好呀 (nǐ hǎo ya) is a more casual, friendly greeting! The 呀 adds warmth. Friends use this version! 加油!',
+            'Great! 你好呀 is how close friends greet each other - more casual and warm! 加油!',
+          ]),
+          emotion: 'joy' as const,
+        },
+      ];
+      return pick(variations);
     }
 
     // Thank you
-    if (lowerMessage.includes('thank') || lowerMessage.includes('谢谢')) {
-      return {
-        hanzi: '谢谢',
-        pinyin: 'xiè xie',
-        translation: 'Thank you',
-        feedback: 'Great! 谢谢 (xiè xie) is how you say thank you. Remember to repeat the 谢 twice! 加油!',
-        emotion: 'study',
-      };
+    if (lowerMessage.match(/\b(thank|thanks|谢谢|感谢)\b/)) {
+      const variations = [
+        {
+          hanzi: '谢谢',
+          pinyin: 'xiè xie',
+          translation: 'Thank you',
+          feedback: pick([
+            '谢谢 (xiè xie) means thank you! Notice how you say 谢 (xiè) twice - that\'s the pattern! You\'re mastering it! 加油!',
+            'Perfect! 谢谢 is how you say thank you in Chinese. Remember to pronounce both syllables! 加油!',
+            '谢谢你! You\'re thanking me? That\'s so polite! 加油!',
+          ]),
+          emotion: 'study' as const,
+        },
+        {
+          hanzi: '不用谢',
+          pinyin: 'bú yòng xiè',
+          translation: 'You\'re welcome / No need to thank',
+          feedback: pick([
+            '不用谢 (bú yòng xiè) means "no need to thank"! A humble, polite response! 加油!',
+            'Sweet of you! To respond you could say 不用谢 (bú yòng xiè) - you\'re welcome! 加油!',
+          ]),
+          emotion: 'joy' as const,
+        },
+      ];
+      return pick(variations);
     }
 
     // Goodbye
-    if (lowerMessage.includes('bye') || lowerMessage.includes('goodbye') || lowerMessage.includes('再见')) {
-      return {
-        hanzi: '再见',
-        pinyin: 'zài jiàn',
-        translation: 'Goodbye',
-        feedback: '再见 (zài jiàn) means goodbye! Literally it means "see again" - how nice! 加油!',
-        emotion: 'joy',
-      };
-    }
-
-    // Numbers
-    if (lowerMessage.includes('number') || lowerMessage.includes('count') || lowerMessage.includes('one')) {
-      return {
-        hanzi: '一二三',
-        pinyin: 'yī èr sān',
-        translation: 'One two three',
-        feedback: 'Let\'s count! 一 (yī) = 1, 二 (èr) = 2, 三 (sān) = 3. Chinese numbers are super logical! 加油!',
-        emotion: 'study',
-      };
-    }
-
-    // How are you
-    if (lowerMessage.includes('how are you') || lowerMessage.includes('怎么样')) {
-      return {
-        hanzi: '你好吗',
-        pinyin: 'nǐ hǎo ma',
-        translation: 'How are you?',
-        feedback: 'To ask "how are you?" say 你好吗 (nǐ hǎo ma). You can answer with 我很好 (wǒ hěn hǎo) - I\'m very good! 加油!',
-        emotion: 'joy',
-      };
-    }
-
-    // Name
-    if (lowerMessage.includes('name') || lowerMessage.includes('my name') || lowerMessage.includes('叫')) {
-      return {
-        hanzi: '我叫小美',
-        pinyin: 'wǒ jiào xiǎo měi',
-        translation: 'My name is Xiaomei',
-        feedback: 'To say your name, use: 我叫... (wǒ jiào...). For example, I say 我叫小美 (wǒ jiào xiǎo měi) - My name is Xiaomei! 加油!',
-        emotion: 'joy',
-      };
-    }
-
-    // Good morning
-    if (lowerMessage.includes('morning') || lowerMessage.includes('早上')) {
-      return {
-        hanzi: '早上好',
-        pinyin: 'zǎo shang hǎo',
-        translation: 'Good morning',
-        feedback: '早上好 (zǎo shang hǎo) means good morning! Perfect for greeting friends in the morning. 加油!',
-        emotion: 'joy',
-      };
-    }
-
-    // Good night
-    if (lowerMessage.includes('night') || lowerMessage.includes('晚安')) {
-      return {
-        hanzi: '晚安',
-        pinyin: 'wǎn ān',
-        translation: 'Good night',
-        feedback: '晚安 (wǎn ān) means good night! Sweet dreams and keep studying tomorrow! 加油!',
-        emotion: 'joy',
-      };
-    }
-
-    // Sorry
-    if (lowerMessage.includes('sorry') || lowerMessage.includes('对不起')) {
-      return {
-        hanzi: '对不起',
-        pinyin: 'duì bu qǐ',
-        translation: 'Sorry',
-        feedback: 'To say sorry, use 对不起 (duì bu qǐ). It\'s very polite! You can also say 不好意思 (bù hǎo yì si) for "excuse me". 加油!',
-        emotion: 'study',
-      };
-    }
-
-    // Love
-    if (lowerMessage.includes('love') || lowerMessage.includes('我爱你')) {
-      return {
-        hanzi: '我爱你',
-        pinyin: 'wǒ ài nǐ',
-        translation: 'I love you',
-        feedback: 'That\'s sweet! 我爱你 (wǒ ài nǐ) means I love you. A very important phrase! 💖 加油!',
-        emotion: 'joy',
-      };
-    }
-
-    // Water
-    if (lowerMessage.includes('water') || lowerMessage.includes('drink') || lowerMessage.includes('水')) {
-      return {
-        hanzi: '水',
-        pinyin: 'shuǐ',
-        translation: 'Water',
-        feedback: '水 (shuǐ) means water. To say "I want to drink water", say 我想喝水 (wǒ xiǎng hē shuǐ). Stay hydrated! 加油!',
-        emotion: 'study',
-      };
-    }
-
-    // Food/Eat
-    if (lowerMessage.includes('food') || lowerMessage.includes('eat') || lowerMessage.includes('吃')) {
-      return {
-        hanzi: '吃饭',
-        pinyin: 'chī fàn',
-        translation: 'Eat/Have a meal',
-        feedback: '吃饭 (chī fàn) means to eat or have a meal. 吃 (chī) = eat, 饭 (fàn) = rice/meal. Have you eaten? 你吃饭了吗？ 加油!',
-        emotion: 'study',
-      };
+    if (lowerMessage.match(/\b(bye|goodbye|再见|拜拜)\b/)) {
+      const variations = [
+        {
+          hanzi: '再见',
+          pinyin: 'zài jiàn',
+          translation: 'Goodbye',
+          feedback: pick([
+            '再见 (zài jiàn) literally means "see again" - what a beautiful way to say goodbye! 加油!',
+            'Goodbye! 再见 (zài jiàn) means "see you again". So poetic! 加油!',
+            '再见! See you next time when we learn more Chinese together! 加油!',
+          ]),
+          emotion: 'joy' as const,
+        },
+        {
+          hanzi: '拜拜',
+          pinyin: 'bài bài',
+          translation: 'Bye bye',
+          feedback: pick([
+            '拜拜 (bài bài) is a casual, fun way to say goodbye! Very popular with young people! 加油!',
+            'Fun choice! 拜拜 is the casual way friends say bye to each other. 加油!',
+          ]),
+          emotion: 'joy' as const,
+        },
+      ];
+      return pick(variations);
     }
 
     // Questions about learning
-    if (lowerMessage.includes('how to learn') || lowerMessage.includes('study') || lowerMessage.includes('practice')) {
-      return {
-        hanzi: '学习',
-        pinyin: 'xué xí',
-        translation: 'Study/Learn',
-        feedback: 'Great question! 学习 (xué xí) means to study. Practice every day, speak out loud, and don\'t be afraid of mistakes! 加油!',
-        emotion: 'study',
-      };
+    if (lowerMessage.match(/\b(learn|study|teach|teach me|practice|如何|怎么)\b/)) {
+      const variations = [
+        {
+          hanzi: '学习',
+          pinyin: 'xué xí',
+          translation: 'To study/learn',
+          feedback: pick([
+            '学习 (xué xí) means to study! The key to learning Chinese is: practice daily, speak out loud, and have FUN! 加油!',
+            'Great spirit! 学习 (xué xí) - together we\'re learning! My tips: be consistent, speak daily, embrace mistakes! 加油!',
+            'Excellent question! 学习 means study. Best methods: immersion, repetition, and conversation. You\'re on the right track! 加油!',
+          ]),
+          emotion: 'study' as const,
+        },
+      ];
+      return pick(variations);
+    }
+
+    // Numbers
+    if (lowerMessage.match(/\b(number|count|one|two|three|数字|一|二|三)\b/)) {
+      const variations = [
+        {
+          hanzi: '一二三四五',
+          pinyin: 'yī èr sān sì wǔ',
+          translation: 'One two three four five',
+          feedback: pick([
+            'Counting! 一(1) 二(2) 三(3) 四(4) 五(5) - Chinese numbers follow such a logical pattern! 六(6) 七(7) 八(8) 九(9) 十(10)! 加油!',
+            'Let\'s count! 一、二、三... are the first three numbers. Super easy! Keep going to 十(10)! 加油!',
+            'Numbers are fundamental! Practice saying 一到十 (1 to 10) out loud every day! 加油!',
+          ]),
+          emotion: 'study' as const,
+        },
+      ];
+      return pick(variations);
+    }
+
+    // Name/Identity
+    if (lowerMessage.match(/\b(name|my name is|叫|名字)\b/)) {
+      const variations = [
+        {
+          hanzi: '我叫小美',
+          pinyin: 'wǒ jiào xiǎo měi',
+          translation: 'My name is Xiaomei',
+          feedback: pick([
+            'I\'m 小美 (xiǎo měi)! To tell your name, say 我叫... (wǒ jiào...) + your name! Try it! 加油!',
+            'My name is 小美! How do you introduce yourself? Use: 我叫... (wǒ jiào...) then your name! 加油!',
+            '小美 is my name! 我叫 (wǒ jiào) means "my name is". Practice saying yours now! 加油!',
+          ]),
+          emotion: 'joy' as const,
+        },
+      ];
+      return pick(variations);
+    }
+
+    // Time-based greetings
+    if (lowerMessage.match(/\b(morning|早上|早安)\b/)) {
+      const variations = [
+        {
+          hanzi: '早上好',
+          pinyin: 'zǎo shang hǎo',
+          translation: 'Good morning',
+          feedback: pick([
+            '早上好 (zǎo shang hǎo) - Good morning! A perfect way to start the day! 加油!',
+            'Good morning! 早上好 is what you say in the morning. The day\'s perfect for learning! 加油!',
+            '早上好! Fresh morning energy for learning Chinese! 加油!',
+          ]),
+          emotion: 'joy' as const,
+        },
+      ];
+      return pick(variations);
+    }
+
+    // Night
+    if (lowerMessage.match(/\b(night|晚安|睡觉|sleep)\b/)) {
+      const variations = [
+        {
+          hanzi: '晚安',
+          pinyin: 'wǎn ān',
+          translation: 'Good night',
+          feedback: pick([
+            '晚安 (wǎn ān) - Good night! Sleep well and dream in Chinese! 加油!',
+            'Good night! 晚安 (wǎn ān) is how you say it. Rest well, tomorrow we\'ll learn more! 加油!',
+            '晚安! Sweet dreams, and I\'ll be here tomorrow for more learning! 加油!',
+          ]),
+          emotion: 'joy' as const,
+        },
+      ];
+      return pick(variations);
+    }
+
+    // Apologies
+    if (lowerMessage.match(/\b(sorry|对不起|不好意思)\b/)) {
+      const variations = [
+        {
+          hanzi: '对不起',
+          pinyin: 'duì bu qǐ',
+          translation: 'I\'m sorry / Excuse me',
+          feedback: pick([
+            '对不起 (duì bu qǐ) - No worries! Learning is about making mistakes! 加油!',
+            'Don\'t worry! 对不起 is useful for apologies. But mistakes are how we learn! 加油!',
+            'No need to apologize! 对不起 (duì bu qǐ) is polite though. You\'re doing great! 加油!',
+          ]),
+          emotion: 'study' as const,
+        },
+        {
+          hanzi: '不好意思',
+          pinyin: 'bù hǎo yì si',
+          translation: 'Excuse me / Sorry / Embarrassed',
+          feedback: pick([
+            '不好意思 (bù hǎo yì si) - more casual way to apologize or get attention! 加油!',
+            'You could also say 不好意思! It\'s a friendlier version! 加油!',
+          ]),
+          emotion: 'study' as const,
+        },
+      ];
+      return pick(variations);
+    }
+
+    // Emotions/Feelings
+    if (lowerMessage.match(/\b(happy|sad|tired|good|bad|开心|伤心|累)\b/)) {
+      const variations = [
+        {
+          hanzi: '我很好',
+          pinyin: 'wǒ hěn hǎo',
+          translation: 'I\'m very good / I\'m doing well',
+          feedback: pick([
+            '我很好 (wǒ hěn hǎo) is a great response! Use 很 (hěn) to intensify adjectives! 加油!',
+            'Perfect! 我很好 means "I\'m very good"! 很 (hěn) intensifies the meaning! 加油!',
+          ]),
+          emotion: 'joy' as const,
+        },
+        {
+          hanzi: '开心',
+          pinyin: 'kāi xin',
+          translation: 'Happy',
+          feedback: pick([
+            '开心 (kāi xin) means happy! It\'s literally "open heart"! 加油!',
+            'I\'m happy too! 开心 (kāi xin) is happiness! 加油!',
+          ]),
+          emotion: 'joy' as const,
+        },
+      ];
+      return pick(variations);
+    }
+
+    // Food/Eating
+    if (lowerMessage.match(/\b(food|eat|吃|饭|餐)\b/)) {
+      const variations = [
+        {
+          hanzi: '吃饭',
+          pinyin: 'chī fàn',
+          translation: 'To eat / Have a meal',
+          feedback: pick([
+            '吃饭 (chī fàn) means to eat! 吃 = eat, 饭 = rice/meal. A key phrase! 加油!',
+            'Hungry? 吃饭 (chī fàn) is eat/have a meal! Very useful phrase! 加油!',
+            '吃 (chī) = eat, and 饭 (fàn) = rice. So 吃饭 literally means "eat rice"! 加油!',
+          ]),
+          emotion: 'study' as const,
+        },
+        {
+          hanzi: '你吃饭了吗',
+          pinyin: 'nǐ chī fàn le ma',
+          translation: 'Have you eaten?',
+          feedback: pick([
+            '你吃饭了吗 (nǐ chī fàn le ma) - "Have you eaten?" is a common Chinese greeting! 加油!',
+            'Great question! This casual question is how Chinese people greet each other! 加油!',
+          ]),
+          emotion: 'study' as const,
+        },
+      ];
+      return pick(variations);
+    }
+
+    // Water/Drinks
+    if (lowerMessage.match(/\b(water|drink|喝|水|茶)\b/)) {
+      const variations = [
+        {
+          hanzi: '水',
+          pinyin: 'shuǐ',
+          translation: 'Water',
+          feedback: pick([
+            '水 (shuǐ) = water! To say "I want water": 我想喝水 (wǒ xiǎng hē shuǐ). Stay hydrated! 加油!',
+            'Good idea! 水 (shuǐ) means water. Very important word for daily life! 加油!',
+            'Thirsty? 水 (shuǐ) is water! 茶 (chá) is tea! 加油!',
+          ]),
+          emotion: 'study' as const,
+        },
+      ];
+      return pick(variations);
+    }
+
+    // Love/Affection
+    if (lowerMessage.match(/\b(love|like|喜欢|爱)\b/)) {
+      const variations = [
+        {
+          hanzi: '我爱你',
+          pinyin: 'wǒ ài nǐ',
+          translation: 'I love you',
+          feedback: pick([
+            '我爱你 (wǒ ài nǐ) - So sweet! This is a powerful phrase! 💖 加油!',
+            'Aww! 我爱你 means "I love you"! A very important phrase! 加油!',
+          ]),
+          emotion: 'joy' as const,
+        },
+        {
+          hanzi: '喜欢',
+          pinyin: 'xǐ huan',
+          translation: 'To like / To enjoy',
+          feedback: pick([
+            '喜欢 (xǐ huan) means to like or enjoy! Less intense than love! 加油!',
+            'I like learning Chinese with you! 喜欢 (xǐ huan) is "to like"! 加油!',
+          ]),
+          emotion: 'joy' as const,
+        },
+      ];
+      return pick(variations);
+    }
+
+    // Family
+    if (lowerMessage.match(/\b(family|mom|dad|sister|brother|家|妈|爸|姐|弟)\b/)) {
+      const variations = [
+        {
+          hanzi: '家',
+          pinyin: 'jiā',
+          translation: 'Home / Family',
+          feedback: pick([
+            '家 (jiā) means home and family! Such an important concept in Chinese! 加油!',
+            'Family is precious! 家 (jiā) = home. 妈妈 (māma) = mom, 爸爸 (bàba) = dad! 加油!',
+          ]),
+          emotion: 'study' as const,
+        },
+      ];
+      return pick(variations);
+    }
+
+    // Questions about age
+    if (lowerMessage.match(/\b(age|old|how old|多大|年龄)\b/)) {
+      const variations = [
+        {
+          hanzi: '多大',
+          pinyin: 'duō dà',
+          translation: 'How old',
+          feedback: pick([
+            '多大 (duō dà) is how you ask age! Answer: 我...岁 (wǒ...suì) = I\'m ... years old! 加油!',
+            'To ask age: 你多大? (nǐ duō dà?) Response: 我18岁 (wǒ 18 suì) 加油!',
+          ]),
+          emotion: 'study' as const,
+        },
+      ];
+      return pick(variations);
+    }
+
+    // Questions
+    if (lowerMessage.match(/\b(why|what|where|when|who|怎么|什么|哪里|何时|谁)\b/)) {
+      const variations = [
+        {
+          hanzi: '什么',
+          pinyin: 'shén me',
+          translation: 'What',
+          feedback: pick([
+            '什么 (shén me) means "what"! This question word is essential! 加油!',
+            'Great question spirit! 什么 (shén me) = what. Keep asking questions! 加油!',
+            'Questions are powerful for learning! 什么 is "what"! 加油!',
+          ]),
+          emotion: 'thinking' as const,
+        },
+      ];
+      return pick(variations);
+    }
+
+    // Encouragement
+    if (lowerMessage.match(/\b(encourage|motivate|加油)\b/)) {
+      const variations = [
+        {
+          hanzi: '加油',
+          pinyin: 'jiā yóu',
+          translation: 'Keep going / You can do it!',
+          feedback: pick([
+            '加油 (jiā yóu) literally means "add oil" - it\'s how Chinese people say "go for it!"! My favorite! 加油!',
+            'YES! 加油 (jiā yóu) is my favorite word! It means keep pushing! We\'ll do this together! 加油!',
+            'That spirit! 加油 is pure motivation! You ARE doing it! 加油!',
+          ]),
+          emotion: 'surprised' as const,
+        },
+      ];
+      return pick(variations);
     }
 
     // Weather
-    if (lowerMessage.includes('weather') || lowerMessage.includes('天气')) {
-      return {
-        hanzi: '天气',
-        pinyin: 'tiān qì',
-        translation: 'Weather',
-        feedback: '天气 (tiān qì) means weather. To ask "How\'s the weather?" say 天气怎么样 (tiān qì zěn me yàng)? 加油!',
-        emotion: 'study',
-      };
+    if (lowerMessage.match(/\b(weather|rain|sunny|天气|下雨|晴)\b/)) {
+      const variations = [
+        {
+          hanzi: '天气',
+          pinyin: 'tiān qì',
+          translation: 'Weather',
+          feedback: pick([
+            '天气 (tiān qì) = weather! To ask: 天气怎么样? (tiān qì zěn me yàng) = How\'s the weather? 加油!',
+            'Nice topic! 天气 (tiān qì) is weather! 晴天 = sunny, 下雨 = raining! 加油!',
+          ]),
+          emotion: 'study' as const,
+        },
+      ];
+      return pick(variations);
     }
 
-    // Default response for anything else
-    return {
-      hanzi: '加油',
-      pinyin: 'jiā yóu',
-      translation: 'Keep going! / You can do it!',
-      feedback: 'That\'s interesting! Let me help you learn more Chinese. 加油 (jiā yóu) means "keep going!" - it\'s my favorite phrase! What would you like to learn? 加油!',
-      emotion: 'thinking',
-    };
+    // Default catch-all with context awareness
+    const defaultVariations = [
+      {
+        hanzi: '加油',
+        pinyin: 'jiā yóu',
+        translation: 'Keep going / You can do it!',
+        feedback: pick([
+          `Interesting! "${userMessage.substring(0, 30)}" - I love your curiosity! 加油 (jiā yóu) means keep going! What else would you like to learn? 加油!`,
+          `That's a great topic! Let me help you with that. In Chinese, we could say... keep exploring and learning with me! 加油!`,
+          `You\'re asking wonderful questions! That's how language learners succeed! Keep the momentum going! 加油!`,
+        ]),
+        emotion: 'thinking' as const,
+      },
+      {
+        hanzi: '不懂',
+        pinyin: 'bu dǒng',
+        translation: 'I don\'t understand',
+        feedback: pick([
+          `Hmm, let me try to explain better! 不懂 (bu dǒng) means "I don't understand" - and that's totally OK! Learning takes time! 加油!`,
+          `That's a new topic for us! Don't worry, 学习 (xué xí) takes patience! Let's break it down together! 加油!`,
+        ]),
+        emotion: 'thinking' as const,
+      },
+    ];
+    return pick(defaultVariations);
   }
 
   /**
