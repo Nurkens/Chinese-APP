@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { IonIcon } from '@ionic/react';
-import { home, book, location, person, flame, schoolOutline, peopleOutline, brushOutline, sparkles } from 'ionicons/icons';
+import { 
+  home, book, location, person, flame, schoolOutline, 
+  peopleOutline, brushOutline, sparkles, menu, close 
+} from 'ionicons/icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useProgress } from '../contexts/ProgressContext';
 import { useXiaomei } from '../contexts/XiaomeiContext';
@@ -14,7 +17,6 @@ import Friends from './Friends';
 import HanziWriter from './anime/HanziPractice/HanziWriter';
 import AdaptiveRecommendations from './AdaptiveRecommendations';
 import type { HanziDrawingResult } from '../types/battle.types';
-
 
 interface TodayWord {
   chinese: string;
@@ -31,7 +33,7 @@ const Dashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('menu');
   const [todayWord, setTodayWord] = useState<TodayWord | null>(null);
   const [loading, setLoading] = useState(true);
-
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showHanziPractice, setShowHanziPractice] = useState(false);
   const [practiceChars, setPracticeChars] = useState<{ chinese: string; pinyin: string; translation: string }[]>([]);
   const [practiceIndex, setPracticeIndex] = useState(0);
@@ -45,15 +47,9 @@ const Dashboard: React.FC = () => {
     const loadDashboardData = async () => {
       try {
         setLoading(true);
-
-        // Load today's word
         const wordData = await wordsAPI.getTodayWord();
         setTodayWord(wordData);
-
-        // Update streak when user opens dashboard
         await userAPI.updateStreak();
-
-        // Refresh progress from context
         await refreshProgress();
       } catch (error) {
         console.error('Failed to load dashboard data:', error);
@@ -65,7 +61,6 @@ const Dashboard: React.FC = () => {
     loadDashboardData();
   }, [isAuthenticated, navigate, refreshProgress]);
 
-  // Trigger Xiaomei message when tab changes
   useEffect(() => {
     const messageMap: Record<string, any> = {
       'menu': 'tab:menu',
@@ -87,448 +82,317 @@ const Dashboard: React.FC = () => {
     navigate('/welcome');
   };
 
-  // Load practice characters when modal opens
   useEffect(() => {
     if (!showHanziPractice) return;
     const loadChars = async () => {
       try {
         const words = await wordsAPI.getWordsByHskLevel(progress?.hskLevel || 1);
-        // Filter to single characters only (hanzi-writer works with single chars)
         const singleChars = words.filter((w: any) => w.chinese.length === 1);
         if (singleChars.length > 0) {
           setPracticeChars(singleChars);
           setPracticeIndex(0);
         }
       } catch (error) {
-        console.error('Failed to load practice characters:', error);
+        console.error('Failed to load characters:', error);
       }
     };
     loadChars();
   }, [showHanziPractice, progress?.hskLevel]);
 
-  // Handle hanzi practice completion
-  const handlePracticeComplete = (_result: HanziDrawingResult) => {
-    // Auto-advance to next character after completion
-    setTimeout(() => {
+  const handleHanziResult = (result: HanziDrawingResult) => {
+    if (result.isCorrect) {
       if (practiceIndex < practiceChars.length - 1) {
-        setPracticeIndex((prev) => prev + 1);
+        setPracticeIndex(practiceIndex + 1);
+      } else {
+        setShowHanziPractice(false);
+        showMessage('hanzi:complete' as any);
       }
-    }, 500);
+    }
   };
 
-  if (loading) {
+  if (loading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-stone-900 via-amber-950 to-stone-900">
-        <div className="text-primary text-xl">Loading...</div>
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading dashboard...</p>
+        </div>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-linear-to-br from-stone-950 via-amber-950 to-stone-950">
-      {/* Decorative elements - Enhanced */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-primary/15 rounded-full blur-3xl animate-pulse"></div>
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-amber-600/15 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
-      <div className="absolute top-1/2 left-1/2 w-72 h-72 bg-orange-500/10 rounded-full blur-3xl" style={{ transform: 'translate(-50%, -50%)' }}></div>
+  // Navigation menu items
+  const menuItems = [
+    { id: 'menu', label: 'Menu', icon: home },
+    { id: 'scroll', label: 'Words', icon: book },
+    { id: 'review', label: 'Review', icon: brushOutline },
+    { id: 'goals', label: 'Goals', icon: location },
+    { id: 'friends', label: 'Friends', icon: peopleOutline },
+    { id: 'profile', label: 'Profile', icon: person },
+    { id: 'adaptive', label: 'Adaptive', icon: sparkles },
+  ];
 
-      {/* Desktop Layout Container */}
-      <div className="relative min-h-screen max-w-7xl mx-auto p-8">
-        {/* Content */}
-        <div className="flex flex-col h-full">
-          {/* Top Navigation Bar - Enhanced */}
-          <div className="flex items-center justify-between mb-12 bg-gradient-to-r from-stone-800/70 to-stone-900/70 backdrop-blur-xl rounded-2xl p-7 border border-primary/30 shadow-2xl hover:border-primary/50 transition-all duration-300">
-            {/* Left: Logo & User */}
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 bg-gradient-to-br from-primary/40 to-amber-600/40 rounded-full flex items-center justify-center shadow-lg border border-primary/30">
-                  <span className="text-3xl">🐼</span>
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'scroll':
+        return <WordLibrary />;
+      case 'review':
+        return <ReviewSession />;
+      case 'goals':
+        return <Goals />;
+      case 'friends':
+        return <Friends />;
+      case 'profile':
+        return <Profile />;
+      case 'adaptive':
+        return <AdaptiveRecommendations />;
+      case 'menu':
+      default:
+        return (
+          <div className="space-y-6">
+            {/* Today's Character Card */}
+            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 sm:p-8 border border-purple-100 shadow-lg">
+              <h2 className="text-lg sm:text-xl font-semibold text-purple-900 mb-4">Today's Character</h2>
+              <div className="text-center">
+                <div className="text-4xl sm:text-5xl md:text-7xl font-bold text-transparent bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text mb-4">
+                  {todayWord?.chinese || '字'}
                 </div>
-                <div>
-                  <h2 className="text-primary text-2xl font-bold bg-gradient-to-r from-primary to-amber-400 bg-clip-text text-transparent">Journey of Words</h2>
-                  <p className="text-amber-200/70 text-sm font-medium">Welcome back, <span className="text-amber-300">{user?.username || 'Warrior'}</span></p>
+                <p className="text-base sm:text-lg text-purple-700 mb-2">{todayWord?.pinyin || 'pínyīn'}</p>
+                <p className="text-sm sm:text-base text-purple-600">{todayWord?.translation || 'Translation'}</p>
+                {todayWord?.example && (
+                  <p className="text-xs sm:text-sm text-purple-500 mt-4 italic">Example: {todayWord.example}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Progress Section */}
+            <div className="bg-white rounded-2xl p-6 sm:p-8 border border-gray-100 shadow-lg">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-800 mb-4">Your Progress</h2>
+              
+              {/* Progress Bar */}
+              <div className="mb-6">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-sm font-medium text-gray-700">Overall Progress</span>
+                  <span className="text-sm font-bold text-indigo-600">{Math.round((progress?.wordsLearned || 0) / (progress?.totalWords || 1) * 100)}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div
+                    className="bg-gradient-to-r from-indigo-500 to-blue-500 h-3 rounded-full transition-all duration-500"
+                    style={{ width: `${Math.round((progress?.wordsLearned || 0) / (progress?.totalWords || 1) * 100)}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
+                  <p className="text-xs sm:text-sm text-gray-600 mb-1">Words Learned</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-indigo-600">{progress?.wordsLearned || 0}</p>
+                </div>
+                <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-xl p-4 border border-orange-100">
+                  <p className="text-xs sm:text-sm text-gray-600 mb-1">Current Streak</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-orange-600">
+                    <span className="mr-2">🔥</span>
+                    {progress?.streak || 0}
+                  </p>
+                </div>
+                <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-4 border border-green-100">
+                  <p className="text-xs sm:text-sm text-gray-600 mb-1">HSK Level</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-green-600">{progress?.hskLevel || 1}</p>
                 </div>
               </div>
             </div>
 
-            {/* Right: Stats & Logout */}
-            <div className="flex items-center gap-3">
-              {/* Streak */}
-              <div className="flex items-center gap-2 bg-gradient-to-r from-orange-500/20 to-red-600/20 backdrop-blur-md px-6 py-3 rounded-xl border border-orange-500/40 shadow-lg hover:shadow-orange-500/20 transition-all">
-                <IonIcon icon={flame} className="w-5 h-5 text-orange-400 group-hover:scale-110 transition-transform" />
-                <span className="text-white font-bold">{progress?.currentStreak || 0}-day</span>
-              </div>
+            {/* Quick Action Buttons */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <button
+                onClick={() => {
+                  setActiveTab('scroll');
+                  setMobileMenuOpen(false);
+                }}
+                className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2"
+              >
+                <IonIcon icon={book} className="text-xl" />
+                <span className="text-sm sm:text-base">Browse Words</span>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab('review');
+                  setMobileMenuOpen(false);
+                }}
+                className="bg-gradient-to-r from-purple-500 to-pink-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2"
+              >
+                <IonIcon icon={brushOutline} className="text-xl" />
+                <span className="text-sm sm:text-base">Review</span>
+              </button>
+            </div>
+          </div>
+        );
+    }
+  };
 
-              {/* HSK Level */}
-              <div className="bg-gradient-to-r from-blue-500/20 to-cyan-600/20 backdrop-blur-md px-6 py-3 rounded-xl border border-blue-500/40 shadow-lg hover:shadow-blue-500/20 transition-all">
-                <span className="text-white font-bold">HSK {progress?.hskLevel || 1}</span>
-              </div>
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+      {/* ==================== NAVBAR ==================== */}
+      <nav className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-md">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16 sm:h-20">
+            {/* Logo */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              <span className="text-2xl sm:text-3xl">🐼</span>
+              <span className="font-bold text-base sm:text-lg text-gray-800">Journey of Words</span>
+            </div>
 
-              {/* Logout Button */}
+            {/* Desktop Navigation - Hidden on Mobile */}
+            <div className="hidden md:flex items-center gap-8">
+              <span className="text-sm text-gray-600">Welcome, {user?.name || 'Learner'}!</span>
+              <div className="flex items-center gap-2 text-orange-600 font-semibold">
+                <IonIcon icon={flame} className="text-xl" />
+                <span>{progress?.streak || 0}</span>
+              </div>
+              <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">
+                HSK {progress?.hskLevel || 1}
+              </div>
               <button
                 onClick={handleLogout}
-                className="px-6 py-3 bg-gradient-to-r from-red-500/20 to-red-600/20 hover:from-red-500/40 hover:to-red-600/40 text-amber-200 rounded-xl border border-red-500/30 transition-all font-medium shadow-lg"
-                title="Logout"
+                className="text-red-600 hover:text-red-700 font-semibold transition-colors"
               >
                 Logout
               </button>
             </div>
+
+            {/* Mobile Menu Button */}
+            <div className="md:hidden">
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="text-2xl text-gray-800 p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <IonIcon icon={mobileMenuOpen ? close : menu} />
+              </button>
+            </div>
           </div>
 
-          {/* Main Content Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Left Column - Dynamic Content */}
-            <div className="lg:col-span-2">
-              {/* Dashboard/Menu Tab */}
-              {activeTab === 'menu' && (
-                <div className="space-y-8 animate-fadeIn">
-                  {/* Today's Character Card - Enhanced */}
-                  <div className="bg-gradient-to-br from-amber-900/40 via-stone-800/50 to-stone-900/60 backdrop-blur-xl rounded-3xl p-10 border border-primary/40 shadow-2xl hover:shadow-primary/20 transition-all duration-300 hover:border-primary/60">
-                    <div className="flex items-center justify-between mb-8">
-                      <h2 className="text-amber-400 text-xs font-bold tracking-widest">✨ TODAY'S CHARACTER</h2>
-                      <div className="px-3 py-1 bg-primary/30 rounded-full text-primary text-xs font-bold">Daily Challenge</div>
-                    </div>
-
-                    {/* Character Display - Enhanced */}
-                    <div className="mb-10">
-                      <div className="text-amber-300 text-sm font-bold tracking-wider mb-4 uppercase">今天汉字 · Hanzi of the Day</div>
-                      <div className="flex items-center gap-6">
-                        <div className="text-7xl font-bold text-transparent bg-gradient-to-r from-primary via-amber-400 to-orange-500 bg-clip-text drop-shadow-lg">
-                          {todayWord?.chinese || '...'}
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-primary text-xl font-bold mb-2">{todayWord?.pinyin || '...'}</p>
-                          <p className="text-amber-200 text-lg">{todayWord?.translation || '...'}</p>
-                          {todayWord?.example && (
-                            <p className="text-amber-200/70 text-sm mt-3 italic border-l-2 border-primary/50 pl-3">
-                              "{todayWord.example}"
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Review Button - Enhanced */}
-                    <button
-                      onClick={() => setActiveTab('review')}
-                      className="w-full bg-gradient-to-r from-primary via-amber-500 to-orange-500 hover:from-primary hover:to-amber-600 text-white font-bold py-4 rounded-xl border border-primary/50 transition-all duration-300 shadow-lg hover:shadow-primary/40 hover:scale-105 transform text-lg"
-                    >
-                      🚀 START REVIEW SESSION
-                    </button>
-                  </div>
-
-                  {/* Progress Section - Enhanced */}
-                  <div className="bg-gradient-to-br from-stone-800/60 to-stone-900/60 backdrop-blur-md rounded-3xl p-8 border border-primary/30 shadow-xl hover:border-primary/50 transition-all">
-                    <h3 className="text-primary text-lg font-bold tracking-widest mb-6 flex items-center gap-2">
-                      📊 YOUR PROGRESS
-                    </h3>
-
-                    {/* Progress Info */}
-                    <div className="mb-6">
-                      <div className="flex justify-between items-center mb-3">
-                        <span className="text-amber-200 font-semibold">
-                          {progress?.totalWords || 0} / {progress?.targetWords || 1200} words
-                        </span>
-                        <span className="text-primary font-bold text-lg">
-                          {progress ? Math.round((progress.totalWords / progress.targetWords) * 100) : 0}%
-                        </span>
-                      </div>
-                      
-                      {/* Progress Bar - Enhanced */}
-                      <div className="w-full bg-stone-700/60 rounded-full h-3 overflow-hidden border border-stone-600/40 shadow-inner">
-                        <div
-                          className="bg-gradient-to-r from-primary via-amber-500 to-orange-500 h-full rounded-full transition-all duration-700 shadow-lg shadow-primary/50"
-                          style={{
-                            width: `${progress ? Math.round((progress.totalWords / progress.targetWords) * 100) : 0}%`
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-
-                    {/* Progress Stats Grid */}
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="bg-stone-700/40 rounded-lg p-3 border border-stone-600/30 text-center">
-                        <p className="text-stone-400 text-xs font-medium mb-1">Words/Day</p>
-                        <p className="text-amber-400 font-bold text-lg">{progress ? Math.round(progress.totalWords / Math.max(progress.currentStreak, 1)) : 0}</p>
-                      </div>
-                      <div className="bg-stone-700/40 rounded-lg p-3 border border-stone-600/30 text-center">
-                        <p className="text-stone-400 text-xs font-medium mb-1">Days Active</p>
-                        <p className="text-amber-400 font-bold text-lg">{progress?.currentStreak || 0}</p>
-                      </div>
-                      <div className="bg-stone-700/40 rounded-lg p-3 border border-stone-600/30 text-center">
-                        <p className="text-stone-400 text-xs font-medium mb-1">Remaining</p>
-                        <p className="text-amber-400 font-bold text-lg">{progress ? progress.targetWords - progress.totalWords : 1200}</p>
-                      </div>
-                    </div>
-                  </div>
+          {/* Mobile Menu Dropdown */}
+          {mobileMenuOpen && (
+            <div className="md:hidden border-t border-gray-200 py-4 space-y-3">
+              <p className="px-4 text-sm text-gray-600 font-medium">Welcome, {user?.name || 'Learner'}!</p>
+              <div className="flex gap-2 px-4 mb-4">
+                <div className="flex items-center gap-2 text-orange-600 font-semibold bg-orange-50 px-3 py-2 rounded-lg">
+                  <IonIcon icon={flame} className="text-lg" />
+                  <span className="text-sm">{progress?.streak || 0} Streak</span>
                 </div>
-              )}
+                <div className="bg-green-100 text-green-800 px-3 py-2 rounded-lg text-sm font-semibold">
+                  HSK {progress?.hskLevel || 1}
+                </div>
+              </div>
+              {menuItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition-colors ${
+                    activeTab === item.id
+                      ? 'bg-indigo-100 text-indigo-700 font-semibold'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <IonIcon icon={item.icon} className="text-xl" />
+                  <span>{item.label}</span>
+                </button>
+              ))}
+              <button
+                onClick={handleLogout}
+                className="w-full text-left px-4 py-3 rounded-lg text-red-600 hover:bg-red-50 font-semibold transition-colors flex items-center gap-3"
+              >
+                <IonIcon icon={person} className="text-xl" />
+                <span>Logout</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </nav>
 
-              {/* Word Library Tab */}
-              {activeTab === 'scroll' && <WordLibrary />}
+      {/* ==================== MAIN CONTENT GRID ==================== */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
+          
+          {/* ==================== LEFT COLUMN (Main Content) ==================== */}
+          <div className="lg:col-span-2">
+            {renderContent()}
+          </div>
 
-              {/* Review Session Tab */}
-              {activeTab === 'review' && <ReviewSession />}
-
-              {/* Goals Tab */}
-              {activeTab === 'goals' && <Goals />}
-
-              {/* Friends Tab */}
-              {activeTab === 'friends' && <Friends />}
-
-              {/* Profile Tab */}
-              {activeTab === 'profile' && <Profile />}
-
-              {/* Adaptive Learning Tab */}
-              {activeTab === 'adaptive' && <AdaptiveRecommendations />}
+          {/* ==================== RIGHT SIDEBAR (Navigation + Stats) ==================== */}
+          <div className="hidden md:block space-y-6">
+            {/* Navigation Sidebar */}
+            <div className="bg-white rounded-2xl p-4 sm:p-6 border border-gray-100 shadow-lg">
+              <h3 className="font-semibold text-gray-800 mb-4">Navigation</h3>
+              <div className="space-y-2">
+                {menuItems.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveTab(item.id)}
+                    className={`w-full text-left px-4 py-2 rounded-lg flex items-center gap-3 transition-all duration-200 ${
+                      activeTab === item.id
+                        ? 'bg-gradient-to-r from-indigo-500 to-blue-500 text-white shadow-lg scale-105'
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <IonIcon icon={item.icon} className="text-lg" />
+                    <span className="font-medium">{item.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Right Column - Navigation - Enhanced */}
-            <div className="space-y-6">
-              {/* Navigation Card */}
-              <nav className="bg-gradient-to-br from-stone-800/80 to-stone-900/80 backdrop-blur-xl rounded-3xl p-6 border border-primary/30 shadow-xl hover:border-primary/50 transition-all">
-                <h3 className="text-primary text-xs font-bold tracking-widest mb-6 flex items-center gap-2">🗺️ NAVIGATION</h3>
-                <div className="space-y-2">
-                  {/* Menu */}
-                  <button
-                    onClick={() => setActiveTab('menu')}
-                    className={`w-full flex items-center gap-3 px-5 py-3 rounded-xl transition-all font-medium ${
-                      activeTab === 'menu'
-                        ? 'bg-gradient-to-r from-primary/40 to-amber-600/40 text-primary border border-primary/50 shadow-lg shadow-primary/20'
-                        : 'text-stone-300 hover:text-primary hover:bg-stone-700/40 border border-transparent'
-                    }`}
-                  >
-                    <IonIcon icon={home} className="w-5 h-5" />
-                    <span>Dashboard</span>
-                  </button>
-
-                  {/* Scroll */}
-                  <button
-                    onClick={() => setActiveTab('scroll')}
-                    className={`w-full flex items-center gap-3 px-5 py-3 rounded-xl transition-all font-medium ${
-                      activeTab === 'scroll'
-                        ? 'bg-gradient-to-r from-primary/40 to-amber-600/40 text-primary border border-primary/50 shadow-lg shadow-primary/20'
-                        : 'text-stone-300 hover:text-primary hover:bg-stone-700/40 border border-transparent'
-                    }`}
-                  >
-                    <IonIcon icon={book} className="w-5 h-5" />
-                    <span>Word Library</span>
-                  </button>
-
-                  {/* Review Session (SRS) */}
-                  <button
-                    onClick={() => setActiveTab('review')}
-                    className={`w-full flex items-center gap-3 px-5 py-3 rounded-xl transition-all font-medium ${
-                      activeTab === 'review'
-                        ? 'bg-gradient-to-r from-primary/40 to-amber-600/40 text-primary border border-primary/50 shadow-lg shadow-primary/20'
-                        : 'text-stone-300 hover:text-primary hover:bg-stone-700/40 border border-transparent'
-                    }`}
-                  >
-                    <IonIcon icon={schoolOutline} className="w-5 h-5" />
-                    <span>Review (SRS)</span>
-                  </button>
-
-                  {/* Goals */}
-                  <button
-                    onClick={() => setActiveTab('goals')}
-                    className={`w-full flex items-center gap-3 px-5 py-3 rounded-xl transition-all font-medium ${
-                      activeTab === 'goals'
-                        ? 'bg-gradient-to-r from-primary/40 to-amber-600/40 text-primary border border-primary/50 shadow-lg shadow-primary/20'
-                        : 'text-stone-300 hover:text-primary hover:bg-stone-700/40 border border-transparent'
-                    }`}
-                  >
-                    <IonIcon icon={location} className="w-5 h-5" />
-                    <span>Goals & Progress</span>
-                  </button>
-
-                  {/* Friends */}
-                  <button
-                    onClick={() => setActiveTab('friends')}
-                    className={`w-full flex items-center gap-3 px-5 py-3 rounded-xl transition-all font-medium ${
-                      activeTab === 'friends'
-                        ? 'bg-gradient-to-r from-primary/40 to-amber-600/40 text-primary border border-primary/50 shadow-lg shadow-primary/20'
-                        : 'text-stone-300 hover:text-primary hover:bg-stone-700/40 border border-transparent'
-                    }`}
-                  >
-                    <IonIcon icon={peopleOutline} className="w-5 h-5" />
-                    <span>Friends</span>
-                  </button>
-
-                  {/* Profile */}
-                  <button
-                    onClick={() => setActiveTab('profile')}
-                    className={`w-full flex items-center gap-3 px-5 py-3 rounded-xl transition-all font-medium ${
-                      activeTab === 'profile'
-                        ? 'bg-gradient-to-r from-primary/40 to-amber-600/40 text-primary border border-primary/50 shadow-lg shadow-primary/20'
-                        : 'text-stone-300 hover:text-primary hover:bg-stone-700/40 border border-transparent'
-                    }`}
-                  >
-                    <IonIcon icon={person} className="w-5 h-5" />
-                    <span>Profile</span>
-                  </button>
-
-                  {/* Hanzi Practice */}
-                  <button
-                    onClick={() => {
-                      showMessage('tab:hanzi');
-                      setShowHanziPractice(true);
-                    }}
-                    className="w-full flex items-center gap-3 px-5 py-3 rounded-xl transition-all font-medium text-stone-300 hover:text-primary hover:bg-stone-700/40 border border-transparent"
-                  >
-                    <IonIcon icon={brushOutline} className="w-5 h-5" />
-                    <span>Hanzi Practice</span>
-                  </button>
-
-                  {/* Adaptive Learning */}
-                  <button
-                    onClick={() => setActiveTab('adaptive')}
-                    className={`w-full flex items-center gap-3 px-5 py-3 rounded-xl transition-all font-medium ${
-                      activeTab === 'adaptive'
-                        ? 'bg-gradient-to-r from-primary/40 to-amber-600/40 text-primary border border-primary/50 shadow-lg shadow-primary/20'
-                        : 'text-stone-300 hover:text-primary hover:bg-stone-700/40 border border-transparent'
-                    }`}
-                  >
-                    <IonIcon icon={sparkles} className="w-5 h-5" />
-                    <span>AI Learning Plan</span>
-                  </button>
+            {/* Stats Card */}
+            <div className="bg-gradient-to-br from-indigo-50 to-blue-50 rounded-2xl p-4 sm:p-6 border border-indigo-100 shadow-lg">
+              <h3 className="font-semibold text-gray-800 mb-4">Quick Stats</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center pb-3 border-b border-indigo-200">
+                  <span className="text-gray-700 text-sm">Words Learned</span>
+                  <span className="font-bold text-indigo-600">{progress?.wordsLearned || 0}</span>
                 </div>
-              </nav>
-
-              {/* Stats Card - Enhanced */}
-              <div className="bg-gradient-to-br from-stone-800/80 to-stone-900/80 backdrop-blur-md rounded-3xl p-6 border border-primary/30 shadow-xl hover:border-primary/50 transition-all">
-                <h3 className="text-primary text-xs font-bold tracking-widest mb-6 flex items-center gap-2">📈 STATS</h3>
-                <div className="space-y-4">
-                  {/* HSK Level */}
-                  <div className="bg-gradient-to-r from-blue-500/20 to-cyan-600/20 rounded-xl p-4 border border-blue-500/30">
-                    <p className="text-stone-400 text-xs font-medium mb-1">Current Level</p>
-                    <p className="text-blue-300 font-bold text-2xl">HSK {progress?.hskLevel || 1}</p>
-                  </div>
-
-                  {/* Current Streak */}
-                  <div className="bg-gradient-to-r from-orange-500/20 to-red-600/20 rounded-xl p-4 border border-orange-500/30">
-                    <p className="text-stone-400 text-xs font-medium mb-1">Current Streak</p>
-                    <p className="text-orange-300 font-bold text-2xl">{progress?.currentStreak || 0} 🔥</p>
-                  </div>
-
-                  {/* Words Learned */}
-                  <div className="bg-gradient-to-r from-purple-500/20 to-pink-600/20 rounded-xl p-4 border border-purple-500/30">
-                    <p className="text-stone-400 text-xs font-medium mb-1">Words Learned</p>
-                    <p className="text-purple-300 font-bold text-2xl">{progress?.totalWords || 0}</p>
-                  </div>
+                <div className="flex justify-between items-center pb-3 border-b border-indigo-200">
+                  <span className="text-gray-700 text-sm">Streak</span>
+                  <span className="font-bold text-orange-600 flex items-center gap-1">
+                    🔥 {progress?.streak || 0}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-700 text-sm">HSK Level</span>
+                  <span className="font-bold text-green-600">{progress?.hskLevel || 1}</span>
                 </div>
               </div>
             </div>
           </div>
+
         </div>
       </div>
 
-      {/* Hanzi Practice Modal */}
-      {showHanziPractice && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 60,
-            background: 'rgba(0, 0, 0, 0.9)',
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'center',
-            padding: '20px',
-            overflow: 'auto',
-          }}
-        >
-          <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '40px', paddingBottom: '40px' }}>
-            {/* Close button */}
-            <button
-              onClick={() => setShowHanziPractice(false)}
-              style={{
-                position: 'absolute',
-                top: '-20px',
-                right: '-20px',
-                width: '48px',
-                height: '48px',
-                borderRadius: '50%',
-                background: '#D4AF37',
-                color: '#1A0E2E',
-                border: 'none',
-                fontSize: '24px',
-                cursor: 'pointer',
-                fontWeight: 'bold',
-                zIndex: 10,
-              }}
-            >
-              ✕
-            </button>
-
-            {/* Character info header */}
-            {practiceChars.length > 0 && (
-              <div style={{
-                marginBottom: '16px',
-                textAlign: 'center',
-                color: '#FFD700',
-              }}>
-                <div style={{ fontSize: '14px', opacity: 0.7 }}>
-                  {practiceIndex + 1} / {practiceChars.length}
-                </div>
-                <div style={{ fontSize: '18px', marginTop: '4px' }}>
-                  <span style={{ color: '#fff' }}>{practiceChars[practiceIndex].pinyin}</span>
-                  <span style={{ color: '#A0AEC0', marginLeft: '12px' }}>{practiceChars[practiceIndex].translation}</span>
-                </div>
-              </div>
-            )}
-
-            {/* HanziWriter */}
-            {practiceChars.length > 0 ? (
-              <HanziWriter
-                key={practiceChars[practiceIndex].chinese}
-                character={practiceChars[practiceIndex].chinese}
-                onComplete={handlePracticeComplete}
-                showHints={true}
-                showOutline={true}
-                size={400}
-              />
-            ) : (
-              <div style={{ color: '#A0AEC0', fontSize: '18px', padding: '40px' }}>
-                Loading characters...
-              </div>
-            )}
-
-            {/* Prev / Next buttons */}
-            {practiceChars.length > 1 && (
-              <div style={{ display: 'flex', gap: '16px', marginTop: '16px' }}>
-                <button
-                  onClick={() => setPracticeIndex((prev) => Math.max(0, prev - 1))}
-                  disabled={practiceIndex === 0}
-                  style={{
-                    padding: '10px 28px',
-                    fontSize: '16px',
-                    fontWeight: 'bold',
-                    background: practiceIndex === 0 ? 'rgba(255,255,255,0.1)' : '#D4AF37',
-                    color: practiceIndex === 0 ? '#666' : '#1A0E2E',
-                    border: 'none',
-                    borderRadius: '12px',
-                    cursor: practiceIndex === 0 ? 'default' : 'pointer',
-                  }}
-                >
-                  Prev
-                </button>
-                <button
-                  onClick={() => setPracticeIndex((prev) => Math.min(practiceChars.length - 1, prev + 1))}
-                  disabled={practiceIndex === practiceChars.length - 1}
-                  style={{
-                    padding: '10px 28px',
-                    fontSize: '16px',
-                    fontWeight: 'bold',
-                    background: practiceIndex === practiceChars.length - 1 ? 'rgba(255,255,255,0.1)' : '#D4AF37',
-                    color: practiceIndex === practiceChars.length - 1 ? '#666' : '#1A0E2E',
-                    border: 'none',
-                    borderRadius: '12px',
-                    cursor: practiceIndex === practiceChars.length - 1 ? 'default' : 'pointer',
-                  }}
-                >
-                  Next
-                </button>
-              </div>
-            )}
+      {/* ==================== HANZI PRACTICE MODAL ==================== */}
+      {showHanziPractice && practiceChars.length > 0 && (
+        <div className="fixed inset-0 z-40 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold text-gray-800">Hanzi Practice</h2>
+              <button
+                onClick={() => setShowHanziPractice(false)}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            <HanziWriter
+              character={practiceChars[practiceIndex].chinese}
+              pinyin={practiceChars[practiceIndex].pinyin}
+              translation={practiceChars[practiceIndex].translation}
+              onResult={handleHanziResult}
+            />
+            <p className="text-center text-gray-600 mt-4">
+              Character {practiceIndex + 1} of {practiceChars.length}
+            </p>
           </div>
         </div>
       )}

@@ -17,6 +17,7 @@
 
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../prisma/prisma.service';
 import OpenAI from 'openai';
 
 export interface TutorResponse {
@@ -32,236 +33,145 @@ export interface ChatMessage {
   content: string;
 }
 
+interface UserProfile {
+  userId: string;
+  hskLevel: number;
+  learnedWords: Set<string>;
+  correctAnswers: number;
+  totalInteractions: number;
+  weakAreas: Map<string, number>; // topic -> difficulty count
+  accuracy: number;
+  engagementLevel: 'beginner' | 'intermediate' | 'advanced';
+  lastActive: Date;
+}
+
 @Injectable()
 export class TutorService {
   private conversationHistory: Map<string, ChatMessage[]> = new Map();
+  private userProfiles: Map<string, UserProfile> = new Map();
   private openai: OpenAI | null = null;
 
-  constructor(private configService: ConfigService) {
+  constructor(
+    private configService: ConfigService,
+    private prisma: PrismaService,
+  ) {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
     
     if (apiKey && apiKey.trim()) {
       this.openai = new OpenAI({ apiKey });
       console.log('✅ Tutor: Using OpenAI GPT-3.5-turbo');
     } else {
-      console.log('📚 Tutor: Using improved AI with varied responses');
+      console.log('📚 Tutor: Using ADAPTIVE AI - learns from each user');
+      console.log('   🧠 AI adapts to user level, pacing, and weak areas');
       console.log('   💡 Tip: Add OPENAI_API_KEY=sk-... to .env for real OpenAI');
     }
   }
 
   /**
-   * Initialize Ollama knowledge base with embeddings
+   * Load user profile and learning data
    */
-  private async initializeOllamaKnowledgeBase(): Promise<void> {
-    const knowledgeTexts = [
-      // Greetings
-      '你好 (nǐ hǎo) - Hello. Most common greeting in Chinese, literally "you good".',
-      '你好吗 (nǐ hǎo ma) - How are you? Polite greeting asking how someone is doing.',
-      '早上好 (zǎo shang hǎo) - Good morning. Greet in the morning.',
-      '晚上好 (wǎn shang hǎo) - Good evening. Evening greeting.',
-      '晚安 (wǎn ān) - Good night. Before sleep.',
-      '你好呀 (nǐ hǎo ya) - Hey there! Casual friendly greeting.',
-      
-      // Politeness
-      '谢谢 (xiè xie) - Thank you. Say 谢 twice for emphasis!',
-      '不用谢 (bú yòng xiè) - You\'re welcome.',
-      '对不起 (duì bu qǐ) - I\'m sorry / Excuse me.',
-      '不好意思 (bu hǎo yì si) - Embarrassed / Excuse me casually.',
-      '请 (qǐng) - Please. Add before requests.',
-      '好的 (hǎo de) - OK / Alright.',
-      
-      // Numbers
-      '一 (yī) - One',
-      '二 (èr) - Two',
-      '三 (sān) - Three',
-      '四 (sì) - Four',
-      '五 (wǔ) - Five',
-      '六 (liù) - Six',
-      '七 (qī) - Seven',
-      '八 (bā) - Eight',
-      '九 (jiǔ) - Nine',
-      '十 (shí) - Ten',
-      '一百 (yī bǎi) - One hundred',
-      '一千 (yī qiān) - One thousand',
-      
-      // Verbs
-      '吃 (chī) - To eat',
-      '吃饭 (chī fàn) - Have a meal',
-      '你吃饭了吗 (nǐ chī fàn le ma) - Have you eaten? (Common Chinese greeting)',
-      '喝 (hē) - To drink',
-      '睡觉 (shuì jiào) - To sleep',
-      '学习 (xué xí) - To study / To learn',
-      '说 (shuō) - To speak / To say',
-      '听 (tīng) - To listen',
-      '读 (dú) - To read',
-      '写 (xiě) - To write',
-      '想 (xiǎng) - To want / To think',
-      '去 (qù) - To go',
-      '来 (lái) - To come',
-      '做 (zuò) - To do / To make',
-      
-      // Emotions
-      '开心 (kāi xin) - Happy. Literally "open heart".',
-      '伤心 (shāng xin) - Sad',
-      '生气 (shēng qì) - Angry',
-      '我很好 (wǒ hěn hǎo) - I\'m doing very well',
-      '我不好 (wǒ bu hǎo) - I\'m not doing well',
-      '累 (leì) - Tired',
-      '高兴 (gāo xìng) - Happy / Delighted',
-      
-      // Questions  
-      '什么 (shén me) - What',
-      '哪里 (nǎ li) - Where',
-      '谁 (shuí) - Who',
-      '为什么 (wèi shén me) - Why',
-      '怎么样 (zěn me yàng) - How is it?',
-      '怎么 (zěn me) - How',
-      '几 (jǐ) - How many',
-      
-      // Family
-      '家 (jiā) - Home / Family',
-      '妈妈 (māma) - Mother',
-      '爸爸 (bàba) - Father',
-      '哥哥 (gē ge) - Older brother',
-      '姐姐 (jiě jie) - Older sister',
-      '弟弟 (dì di) - Younger brother',
-      '妹妹 (mèi mei) - Younger sister',
-      '朋友 (péng you) - Friend',
-      
-      // Objects/Things
-      '水 (shuǐ) - Water',
-      '茶 (chá) - Tea',
-      '书 (shū) - Book',
-      '笔 (bǐ) - Pen',
-      '电脑 (diàn nǎo) - Computer',
-      '手机 (shǒu jī) - Mobile phone',
-      '房间 (fáng jiān) - Room',
-      '学校 (xué xiào) - School',
-      
-      // Motivation & Encouragement
-      '加油 (jiā yóu) - Keep going! / You can do it! (literally "add oil")',
-      '太好了 (tài hǎo le) - Excellent! / That\'s great!',
-      '不错 (bu cuò) - Not bad! / Pretty good!',
-      '继续 (jì xù) - Continue / Keep on',
-      '坚持 (jiān chí) - Persist / Keep at it',
-      '你很棒 (nǐ hěn bàng) - You\'re great!',
-      
-      // Love & Affection
-      '我爱你 (wǒ ài nǐ) - I love you',
-      '喜欢 (xǐ huan) - To like / To enjoy',
-      '我喜欢你 (wǒ xǐ huan nǐ) - I like you',
-      
-      // Time
-      '现在 (xiàn zài) - Now',
-      '今天 (jīn tiān) - Today',
-      '明天 (míng tiān) - Tomorrow',
-      '昨天 (zuó tiān) - Yesterday',
-      '早上 (zǎo shang) - Morning',
-      '晚上 (wǎn shang) - Evening',
-      '中午 (zhōng wǔ) - Noon',
-      
-      // Adjectives  
-      '大 (dà) - Big / Large',
-      '小 (xiǎo) - Small',
-      '好 (hǎo) - Good',
-      '坏 (huài) - Bad',
-      '新 (xīn) - New',
-      '旧 (jiù) - Old',
-      '快 (kuài) - Fast',
-      '慢 (màn) - Slow',
-      '热 (rè) - Hot',
-      '冷 (lěng) - Cold',
-    ];
-
-    console.log('🔄 Generating vector embeddings for knowledge base...');
-    for (const text of knowledgeTexts) {
-      try {
-        const embedding = await this.getOllamaEmbedding(text);
-        this.knowledgeBase.push({ text, embedding });
-      } catch (error) {
-        // Silently skip if embedding fails
-      }
+  private async loadUserProfile(userId: string): Promise<UserProfile> {
+    const cached = this.userProfiles.get(userId);
+    if (cached) {
+      return cached;
     }
-    console.log(`✅ Knowledge base ready: ${this.knowledgeBase.length}/${knowledgeTexts.length} entries embedded`);
-    console.log('💡 Ollama using semantic search for context-aware responses');
-  }
 
-  /**
-   * Get embedding from Ollama
-   */
-  private getOllamaEmbedding(text: string): Promise<number[]> {
-    return new Promise((resolve, reject) => {
-      const payload = JSON.stringify({
-        model: 'nomic-embed-text',
-        prompt: text,
-      });
-
-      const options = {
-        hostname: 'localhost',
-        port: 11434,
-        path: '/api/embeddings',
-        method: 'POST' as const,
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(payload),
+    try {
+      // Fetch user data from database
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          learnedWords: {
+            include: { word: true },
+          },
+          progress: true,
         },
-      };
+      }).catch(() => null);
 
-      const req = http.request(options, (res) => {
-        let data = '';
-        res.on('data', (chunk) => (data += chunk));
-        res.on('end', () => {
-          try {
-            const result = JSON.parse(data);
-            resolve(result.embedding || []);
-          } catch (error) {
-            reject(error);
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      // Fetch learned words
+      const learnedWords = new Set<string>();
+      if (user.learnedWords && Array.isArray(user.learnedWords)) {
+        user.learnedWords.forEach(lw => {
+          if (lw.word?.chinese) {
+            learnedWords.add(lw.word.chinese);
           }
         });
-      });
+      }
 
-      req.on('error', reject);
-      req.write(payload);
-      req.end();
-    });
-  }
+      // Calculate accuracy based on review counts
+      let totalReviews = 0;
+      let successfulReviews = 0;
+      if (user.learnedWords && Array.isArray(user.learnedWords)) {
+        user.learnedWords.forEach(lw => {
+          totalReviews += lw.reviewCount || 0;
+          if (lw.mastery > 50) successfulReviews += (lw.reviewCount || 0);
+        });
+      }
+      const accuracy = totalReviews > 0 ? (successfulReviews / totalReviews) * 100 : 0;
 
-  /**
-   * Semantic search using cosine similarity
-   */
-  private async semanticSearch(query: string, topK: number = 5): Promise<string[]> {
-    try {
-      const queryEmbedding = await this.getOllamaEmbedding(query);
-      
-      const similarities = this.knowledgeBase.map((item) => ({
-        text: item.text,
-        similarity: this.cosineSimilarity(queryEmbedding, item.embedding),
-      }));
+      // Determine engagement level
+      const learnedCount = learnedWords.size;
+      let engagementLevel: 'beginner' | 'intermediate' | 'advanced' = 'beginner';
+      if (learnedCount > 50) engagementLevel = 'intermediate';
+      if (learnedCount > 200) engagementLevel = 'advanced';
 
-      return similarities
-        .sort((a, b) => b.similarity - a.similarity)
-        .slice(0, topK)
-        .map((item) => item.text);
+      const profile: UserProfile = {
+        userId,
+        hskLevel: user.progress?.hskLevel || 1,
+        learnedWords,
+        correctAnswers: successfulReviews,
+        totalInteractions: totalReviews,
+        weakAreas: new Map(),
+        accuracy,
+        engagementLevel,
+        lastActive: new Date(),
+      };
+
+      this.userProfiles.set(userId, profile);
+      return profile;
     } catch (error) {
-      return [];
+      // Fallback: create basic profile
+      return {
+        userId,
+        hskLevel: 1,
+        learnedWords: new Set(),
+        correctAnswers: 0,
+        totalInteractions: 0,
+        weakAreas: new Map(),
+        accuracy: 0,
+        engagementLevel: 'beginner',
+        lastActive: new Date(),
+      };
     }
   }
 
   /**
-   * Cosine similarity calculation
+   * Update user profile based on interaction
    */
-  private cosineSimilarity(a: number[], b: number[]): number {
-    if (a.length !== b.length) return 0;
-    const dotProduct = a.reduce((sum, val, i) => sum + val * b[i], 0);
-    const normA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
-    const normB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
-    return normA && normB ? dotProduct / (normA * normB) : 0;
+  private updateUserProfile(profile: UserProfile, wasCorrect: boolean, topic: string) {
+    profile.totalInteractions++;
+    if (wasCorrect) {
+      profile.correctAnswers++;
+    } else {
+      // Track weak areas
+      const currentCount = profile.weakAreas.get(topic) || 0;
+      profile.weakAreas.set(topic, currentCount + 1);
+    }
+    profile.accuracy = (profile.correctAnswers / profile.totalInteractions) * 100;
+    profile.lastActive = new Date();
   }
 
   /**
-   * Chat with AI tutor
+   * Chat with AI tutor - ADAPTIVE to user level and progress
    */
   async chat(userId: string, message: string): Promise<TutorResponse> {
+    // Load user profile with their learning data
+    const userProfile = await this.loadUserProfile(userId);
+
     // Get or create conversation history
     let history = this.conversationHistory.get(userId);
     if (!history) {
@@ -303,11 +213,12 @@ Respond ONLY as JSON with these exact fields:
       if (this.openai) {
         response = await this.getOpenAIResponse(history);
       } else {
-        response = this.getMockResponse(message);
+        // Use adaptive mock response based on user profile
+        response = this.getMockResponse(message, userProfile);
       }
     } catch (error) {
       console.error('AI error:', error);
-      response = this.getMockResponse(message);
+      response = this.getMockResponse(message, userProfile);
     }
 
     // Add assistant response to history
@@ -415,40 +326,67 @@ Respond ONLY as JSON with these exact fields:
   }
 
   /**
-   * Mock response for development/fallback - IMPROVED with variation
+   * Adaptive mock response - tailored to user level, pace, and weak areas
    */
-  private getMockResponse(userMessage: string): TutorResponse {
+  private getMockResponse(userMessage: string, userProfile?: UserProfile): TutorResponse {
     const lowerMessage = userMessage.toLowerCase();
 
     // Helper to pick random element
     const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
+    // Determine difficulty based on user profile
+    const shouldAdvance = (userProfile?.accuracy || 0) > 80 && userProfile?.engagementLevel !== 'advanced';
+    const needsEncouragement = (userProfile?.accuracy || 0) < 50;
+    const isIntermediate = userProfile?.engagementLevel === 'intermediate';
+    const isAdvanced = userProfile?.engagementLevel === 'advanced';
+
+    // Personalized prefix based on performance
+    const getPersonalizedFeedback = (baseFeedback: string): string => {
+      if (needsEncouragement && Math.random() > 0.5) {
+        const encouragements = [
+          `你做得很好! ${baseFeedback}`,
+          `继续加油! ${baseFeedback}`,
+          `很棒! ${baseFeedback}`,
+        ];
+        return pick(encouragements);
+      }
+      if (shouldAdvance && Math.random() > 0.6) {
+        return `高级! ${baseFeedback}`;
+      }
+      return baseFeedback;
+    };
+
     // Greetings
     if (lowerMessage.match(/\b(hello|hi|hey|你好|嗨)\b/)) {
+      const greetingEmotion: TutorResponse['emotion'] = needsEncouragement ? 'study' : 'joy';
       const variations = [
         {
           hanzi: '你好',
           pinyin: 'nǐ hǎo',
           translation: 'Hello',
-          feedback: pick([
+          feedback: getPersonalizedFeedback(pick([
             '你好! (nǐ hǎo) means hello - literally "you good"! Such a nice greeting. How are you today? 加油!',
             'Hello! 你好 (nǐ hǎo) is the most common greeting in Chinese. Use it with friends and strangers alike! 加油!',
             '你好! That\'s a perfect greeting! You\'re already speaking Chinese like a native! Keep it up! 加油!',
-          ]),
-          emotion: 'joy' as const,
+          ])),
+          emotion: greetingEmotion,
         },
         {
           hanzi: '你好呀',
           pinyin: 'nǐ hǎo ya',
           translation: 'Hey there!',
-          feedback: pick([
+          feedback: getPersonalizedFeedback(pick([
             '你好呀 (nǐ hǎo ya) is a more casual, friendly greeting! The 呀 adds warmth. Friends use this version! 加油!',
             'Great! 你好呀 is how close friends greet each other - more casual and warm! 加油!',
-          ]),
+          ])),
           emotion: 'joy' as const,
         },
       ];
-      return pick(variations);
+      const response = pick(variations);
+      if (userProfile) {
+        this.updateUserProfile(userProfile, true, 'greetings');
+      }
+      return response;
     }
 
     // Thank you
@@ -851,6 +789,26 @@ Respond ONLY as JSON with these exact fields:
    */
   clearHistory(userId: string): void {
     this.conversationHistory.delete(userId);
+  }
+
+  /**
+   * Get user learning profile and stats
+   */
+  async getUserStats(userId: string) {
+    const profile = await this.loadUserProfile(userId);
+    return {
+      userId,
+      hskLevel: profile.hskLevel,
+      wordsLearned: profile.learnedWords.size,
+      accuracy: Math.round(profile.accuracy * 100) / 100,
+      engagementLevel: profile.engagementLevel,
+      totalInteractions: profile.totalInteractions,
+      correctAnswers: profile.correctAnswers,
+      weakAreas: Array.from(profile.weakAreas.entries()).map(([topic, count]) => ({
+        topic,
+        difficultyCount: count,
+      })),
+    };
   }
 
   /**

@@ -12,6 +12,12 @@ export class TutorController {
     return this.tutorService.chat(userId, message);
   }
 
+  @Get('stats')
+  async getStats(@Request() req) {
+    const userId = req.user?.id || req.query?.userId || 'guest';
+    return this.tutorService.getUserStats(userId);
+  }
+
   @Get('history')
   async getHistory(@Request() req) {
     const userId = req.user?.id || req.query?.userId || 'guest';
