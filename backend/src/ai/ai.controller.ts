@@ -13,6 +13,7 @@ import {
 import type { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AiService } from './ai.service';
+import { StoryService } from './services/story.service';
 import { ChatRequestDto, CreateConversationDto } from './dto/chat.dto';
 
 @Controller('ai')
@@ -20,7 +21,10 @@ import { ChatRequestDto, CreateConversationDto } from './dto/chat.dto';
 export class AiController {
   private readonly logger = new Logger(AiController.name);
 
-  constructor(private readonly ai: AiService) {}
+  constructor(
+    private readonly ai: AiService,
+    private readonly story: StoryService,
+  ) {}
 
   private uid(req: Request): string {
     return (req as any).user?.id;
@@ -34,6 +38,16 @@ export class AiController {
   @Post('knowledge/reindex')
   async reindex() {
     return this.ai.reindex();
+  }
+
+  @Get('story/today')
+  async storyToday(@Req() req: Request) {
+    return this.story.getToday(this.uid(req));
+  }
+
+  @Post('story/regenerate')
+  async storyRegenerate(@Req() req: Request) {
+    return this.story.regenerateToday(this.uid(req));
   }
 
   @Get('conversations')

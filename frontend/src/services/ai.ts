@@ -47,9 +47,48 @@ export interface StreamHandlers {
   onError?: (message: string) => void;
 }
 
+export interface StoryLine {
+  chinese: string;
+  pinyin: string;
+  translation: string;
+}
+
+export interface StoryWord {
+  wordId: string;
+  chinese: string;
+  pinyin: string;
+  translation: string;
+  hskLevel: number;
+  source: 'srs_weak' | 'recent' | 'hsk_new';
+}
+
+export interface DailyStory {
+  id: string;
+  date: string;
+  title: string;
+  lines: StoryLine[];
+  wordsUsed: StoryWord[];
+  regenCount: number;
+  remainingRegens: number;
+  hskLevel: number | null;
+  model: string;
+  createdAt: string;
+  isNew: boolean;
+}
+
 export const aiAPI = {
   status: async (): Promise<AiStatus> => {
     const res = await api.get('/ai/status');
+    return res.data;
+  },
+
+  storyToday: async (): Promise<DailyStory> => {
+    const res = await api.get('/ai/story/today');
+    return res.data;
+  },
+
+  storyRegenerate: async (): Promise<DailyStory> => {
+    const res = await api.post('/ai/story/regenerate');
     return res.data;
   },
 

@@ -7,11 +7,19 @@ import { OllamaService } from './services/ollama.service';
 import { PromptBuilderService } from './services/prompt-builder.service';
 import { MemoryService } from './services/memory.service';
 import { RagService } from './services/rag.service';
+import { StoryService } from './services/story.service';
 
 @Module({
   imports: [PrismaModule, AuthModule],
   controllers: [AiController],
-  providers: [AiService, OllamaService, PromptBuilderService, MemoryService, RagService],
-  exports: [AiService, OllamaService, RagService],
+  providers: [
+    AiService,
+    OllamaService,
+    PromptBuilderService,
+    MemoryService,
+    RagService,
+    StoryService,
+  ],
+  exports: [AiService, OllamaService, RagService, StoryService],
 })
 export class AiModule {}

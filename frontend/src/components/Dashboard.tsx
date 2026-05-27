@@ -13,6 +13,7 @@ import ReviewSession from './ReviewSession';
 import Friends from './Friends';
 import HanziWriter from './anime/HanziPractice/HanziWriter';
 import AdaptiveRecommendations from './AdaptiveRecommendations';
+import DailyStory from './ai/DailyStory';
 import type { HanziDrawingResult } from '../types/battle.types';
 
 
@@ -215,6 +216,9 @@ const Dashboard: React.FC = () => {
                       🚀 START REVIEW SESSION
                     </button>
                   </div>
+
+                  {/* Personalized AI-generated story */}
+                  <DailyStory />
 
                   {/* Progress Section - Enhanced */}
                   <div className="bg-gradient-to-br from-stone-800/60 to-stone-900/60 backdrop-blur-md rounded-3xl p-8 border border-primary/30 shadow-xl hover:border-primary/50 transition-all">
