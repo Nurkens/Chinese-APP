@@ -26,6 +26,7 @@ model User {
   settings      UserSettings?
   learnedWords  UserWord[]
   conversations Conversation[]
+  dailyStories  DailyStory[]
   friends       Friendship[]   @relation("UserFriends")
   friendOf      Friendship[]   @relation("FriendOf")
 
@@ -139,11 +140,11 @@ model Conversation {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String   @default("New conversation")
   summary   String?  @db.Text // rolling summary for long convos
-  model     String?  // model id used (informational)
+  model     String? // model id used (informational)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  messages  Message[]
+  messages Message[]
 
   @@index([userId, updatedAt])
   @@map("conversations")
@@ -153,7 +154,7 @@ model Message {
   id             String       @id @default(uuid())
   conversationId String
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  role           String       // "user" | "assistant" | "system"
+  role           String // "user" | "assistant" | "system"
   content        String       @db.Text
   tokensApprox   Int          @default(0)
   createdAt      DateTime     @default(now())
@@ -162,16 +163,35 @@ model Message {
   @@map("messages")
 }
 
+model DailyStory {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      String   // YYYY-MM-DD in the user's local-ish timezone (UTC for now)
+  title     String
+  lines     Json     // [{chinese, pinyin, translation}, ...]
+  wordsUsed Json     // [{chinese, pinyin, translation, wordId?}, ...]
+  hskLevel  Int?
+  model     String
+  regenCount Int     @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@map("daily_stories")
+}
+
 model KnowledgeChunk {
   id        String   @id @default(uuid())
-  source    String   // "hsk_word" | "grammar" | "app_help"
-  refId     String?  // word id, grammar rule slug, etc.
+  source    String // "hsk_word" | "grammar" | "app_help"
+  refId     String? // word id, grammar rule slug, etc.
   title     String
   content   String   @db.Text
   hskLevel  Int?
   hash      String   @unique // sha256 of model+content — skip re-embed
-  embedding Float[]  // raw vector
-  model     String   // embedding model used
+  embedding Float[] // raw vector
+  model     String // embedding model used
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

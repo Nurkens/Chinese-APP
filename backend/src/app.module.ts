@@ -12,6 +12,7 @@ import { GachaModule } from './gacha/gacha.module';
 import { SRSModule } from './srs/srs.module';
 import { FriendsModule } from './friends/friends.module';
 import { AdaptiveModule } from './adaptive/adaptive.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { AdaptiveModule } from './adaptive/adaptive.module';
     SRSModule,
     FriendsModule,
     AdaptiveModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [AppService],
