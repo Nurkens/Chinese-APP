@@ -1,33 +1,133 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { IonIcon } from '@ionic/react';
-import { personCircleOutline, mailOutline, calendarOutline, trophyOutline, flameOutline, bookOutline, settingsOutline, logOutOutline } from 'ionicons/icons';
+import {
+  mailOutline,
+  calendarOutline,
+  trophyOutline,
+  flameOutline,
+  bookOutline,
+  settingsOutline,
+  logOutOutline,
+  notificationsOutline,
+  alarmOutline,
+  volumeHighOutline,
+} from 'ionicons/icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useProgress } from '../contexts/ProgressContext';
+import { useSettings } from '../contexts/SettingsContext';
+import { useToast } from '../contexts/ToastContext';
 import { useNavigate } from 'react-router-dom';
+import EditProfileModal from './EditProfileModal';
 
-interface UserProgress {
-  currentStreak: number;
-  longestStreak: number;
-  hskLevel: number;
-  totalWords: number;
-  targetWords: number;
-  lastStudyDate?: string;
+interface ToggleProps {
+  enabled: boolean;
+  onToggle: () => void;
+  disabled?: boolean;
+  label: string;
 }
+
+const Toggle: React.FC<ToggleProps> = ({ enabled, onToggle, disabled, label }) => (
+  <button
+    type="button"
+    role="switch"
+    aria-checked={enabled}
+    aria-label={label}
+    disabled={disabled}
+    onClick={onToggle}
+    className={`relative w-12 h-6 rounded-full transition-colors duration-200 ${
+      enabled ? 'bg-primary' : 'bg-stone-700'
+    } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+  >
+    <span
+      className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${
+        enabled ? 'translate-x-6' : 'translate-x-0'
+      }`}
+    />
+  </button>
+);
 
 const Profile: React.FC = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const { progress, loading, refreshProgress, learnedWords } = useProgress();
-  const [isEditing, setIsEditing] = useState(false);
+  const { progress, loading, refreshProgress } = useProgress();
+  const { settings, saving, notificationPermission, requestNotificationPermission, updateSetting, playSound } =
+    useSettings();
+  const toast = useToast();
+
+  const [isEditOpen, setIsEditOpen] = useState(false);
 
   useEffect(() => {
-    // Refresh progress when Profile is opened
     refreshProgress();
   }, [refreshProgress]);
 
   const handleLogout = () => {
     logout();
     navigate('/welcome');
+  };
+
+  const handleNotificationsToggle = async () => {
+    const next = !settings.notificationsEnabled;
+    try {
+      if (next && notificationPermission !== 'granted') {
+        const result = await requestNotificationPermission();
+        if (result === 'denied') {
+          toast.error('Notifications were blocked in your browser settings');
+          return;
+        }
+        if (result === 'unsupported') {
+          toast.error('Notifications are not supported on this device');
+          return;
+        }
+      }
+      await updateSetting('notificationsEnabled', next);
+      playSound('click');
+      toast.success(next ? 'Notifications enabled' : 'Notifications disabled');
+    } catch {
+      toast.error('Failed to update notifications');
+    }
+  };
+
+  const handleReminderToggle = async () => {
+    const next = !settings.reminderEnabled;
+    try {
+      if (next) {
+        if (!settings.notificationsEnabled) {
+          toast.error('Enable notifications first');
+          return;
+        }
+        if (notificationPermission !== 'granted') {
+          const result = await requestNotificationPermission();
+          if (result !== 'granted') {
+            toast.error('Notification permission is required for reminders');
+            return;
+          }
+        }
+      }
+      await updateSetting('reminderEnabled', next);
+      playSound('click');
+      toast.success(next ? 'Daily reminder enabled' : 'Daily reminder disabled');
+    } catch {
+      toast.error('Failed to update reminder');
+    }
+  };
+
+  const handleReminderTimeChange = async (time: string) => {
+    try {
+      await updateSetting('reminderTime', time);
+    } catch {
+      toast.error('Failed to update reminder time');
+    }
+  };
+
+  const handleSoundToggle = async () => {
+    const next = !settings.soundEnabled;
+    try {
+      await updateSetting('soundEnabled', next);
+      if (next) playSound('success');
+      toast.success(next ? 'Sound effects enabled' : 'Sound effects disabled');
+    } catch {
+      toast.error('Failed to update sound');
+    }
   };
 
   const stats = [
@@ -45,6 +145,9 @@ const Profile: React.FC = () => {
     );
   }
 
+  const avatar = user?.avatar || '🐼';
+  const isImageAvatar = avatar.startsWith('data:') || avatar.startsWith('http');
+
   return (
     <div className="space-y-6 animate-fadeIn">
       {/* Header */}
@@ -60,8 +163,12 @@ const Profile: React.FC = () => {
         <div className="flex items-start gap-6">
           {/* Avatar */}
           <div className="relative group">
-            <div className="w-32 h-32 bg-linear-to-br from-primary/20 to-amber-600/20 rounded-full flex items-center justify-center border-4 border-primary/30 transition-all duration-300 group-hover:scale-110 group-hover:rotate-6">
-              <span className="text-6xl">🐼</span>
+            <div className="w-32 h-32 bg-linear-to-br from-primary/20 to-amber-600/20 rounded-full flex items-center justify-center border-4 border-primary/30 transition-all duration-300 group-hover:scale-110 group-hover:rotate-6 overflow-hidden">
+              {isImageAvatar ? (
+                <img src={avatar} alt="avatar" className="w-full h-full object-cover" />
+              ) : (
+                <span className="text-6xl">{avatar}</span>
+              )}
             </div>
             <div className="absolute inset-0 bg-primary/20 rounded-full blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
           </div>
@@ -85,14 +192,21 @@ const Profile: React.FC = () => {
 
               <div className="flex items-center gap-3 text-stone-300">
                 <IonIcon icon={calendarOutline} className="w-5 h-5 text-primary" />
-                <span>Member since {new Date().toLocaleDateString()}</span>
+                <span>
+                  Member since{' '}
+                  {user?.createdAt
+                    ? new Date(user.createdAt).toLocaleDateString()
+                    : new Date().toLocaleDateString()}
+                </span>
               </div>
-
             </div>
 
             <div className="mt-6 flex gap-3">
               <button
-                onClick={() => setIsEditing(!isEditing)}
+                onClick={() => {
+                  playSound('click');
+                  setIsEditOpen(true);
+                }}
                 className="px-6 py-2 bg-primary/20 hover:bg-primary/30 text-primary rounded-xl transition-all duration-200 hover:scale-105"
               >
                 Edit Profile
@@ -182,28 +296,76 @@ const Profile: React.FC = () => {
         </div>
 
         <div className="space-y-3">
-          <button className="w-full flex items-center justify-between p-4 bg-stone-900/50 hover:bg-stone-900/70 rounded-xl transition-all text-left">
-            <span className="text-white">Notifications</span>
-            <div className="w-12 h-6 bg-stone-700 rounded-full relative">
-              <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform"></div>
+          {/* Notifications */}
+          <div className="flex items-center justify-between p-4 bg-stone-900/50 hover:bg-stone-900/70 rounded-xl transition-all">
+            <div className="flex items-center gap-3">
+              <IonIcon icon={notificationsOutline} className="w-5 h-5 text-primary" />
+              <div>
+                <div className="text-white">Notifications</div>
+                {notificationPermission === 'denied' && (
+                  <div className="text-xs text-red-400 mt-0.5">Blocked in browser settings</div>
+                )}
+                {notificationPermission === 'unsupported' && (
+                  <div className="text-xs text-stone-500 mt-0.5">Not supported on this device</div>
+                )}
+              </div>
             </div>
-          </button>
+            <Toggle
+              enabled={settings.notificationsEnabled}
+              onToggle={handleNotificationsToggle}
+              disabled={saving || notificationPermission === 'unsupported'}
+              label="Toggle notifications"
+            />
+          </div>
 
-          <button className="w-full flex items-center justify-between p-4 bg-stone-900/50 hover:bg-stone-900/70 rounded-xl transition-all text-left">
-            <span className="text-white">Daily Reminder</span>
-            <div className="w-12 h-6 bg-primary rounded-full relative">
-              <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full transition-transform"></div>
+          {/* Daily Reminder */}
+          <div className="p-4 bg-stone-900/50 hover:bg-stone-900/70 rounded-xl transition-all">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <IonIcon icon={alarmOutline} className="w-5 h-5 text-primary" />
+                <span className="text-white">Daily Reminder</span>
+              </div>
+              <Toggle
+                enabled={settings.reminderEnabled}
+                onToggle={handleReminderToggle}
+                disabled={saving || notificationPermission === 'unsupported'}
+                label="Toggle daily reminder"
+              />
             </div>
-          </button>
+            {settings.reminderEnabled && (
+              <div className="mt-3 flex items-center justify-between gap-3 pl-8 animate-fadeIn">
+                <label className="text-sm text-stone-400" htmlFor="reminder-time">
+                  Remind me at
+                </label>
+                <input
+                  id="reminder-time"
+                  type="time"
+                  value={settings.reminderTime}
+                  onChange={(e) => handleReminderTimeChange(e.target.value)}
+                  disabled={saving}
+                  className="bg-stone-800 border border-stone-700 rounded-lg px-3 py-1.5 text-white text-sm focus:border-primary focus:outline-none transition-all disabled:opacity-60"
+                />
+              </div>
+            )}
+          </div>
 
-          <button className="w-full flex items-center justify-between p-4 bg-stone-900/50 hover:bg-stone-900/70 rounded-xl transition-all text-left">
-            <span className="text-white">Sound Effects</span>
-            <div className="w-12 h-6 bg-primary rounded-full relative">
-              <div className="absolute right-1 top-1 w-4 h-4 bg-white rounded-full transition-transform"></div>
+          {/* Sound Effects */}
+          <div className="flex items-center justify-between p-4 bg-stone-900/50 hover:bg-stone-900/70 rounded-xl transition-all">
+            <div className="flex items-center gap-3">
+              <IonIcon icon={volumeHighOutline} className="w-5 h-5 text-primary" />
+              <span className="text-white">Sound Effects</span>
             </div>
-          </button>
+            <Toggle
+              enabled={settings.soundEnabled}
+              onToggle={handleSoundToggle}
+              disabled={saving}
+              label="Toggle sound effects"
+            />
+          </div>
         </div>
       </div>
+
+      <EditProfileModal isOpen={isEditOpen} onClose={() => setIsEditOpen(false)} />
     </div>
   );
 };

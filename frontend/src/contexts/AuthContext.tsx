@@ -9,7 +9,9 @@ interface User {
   username: string;
   email?: string;
   tag: string;
+  avatar?: string;
   isGuest: boolean;
+  createdAt?: string;
 }
 
 interface AuthContextType {
@@ -24,6 +26,7 @@ interface AuthContextType {
   logout: () => void;
   isAuthenticated: boolean;
   clearGoogleError: () => void;
+  updateUser: (patch: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -181,6 +184,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setGoogleError(null);
   };
 
+  const updateUser = useCallback((patch: Partial<User>) => {
+    setUser((prev) => (prev ? { ...prev, ...patch } : prev));
+  }, []);
+
   const value: AuthContextType = {
     user,
     loading,
@@ -193,6 +200,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     logout,
     isAuthenticated: !!user,
     clearGoogleError,
+    updateUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -74,9 +74,42 @@ export const wordsAPI = {
 };
 
 // User API
+export interface UpdateProfilePayload {
+  username?: string;
+  email?: string;
+  avatar?: string;
+}
+
+export interface UserSettings {
+  notificationsEnabled: boolean;
+  reminderEnabled: boolean;
+  reminderTime: string; // HH:MM
+  soundEnabled: boolean;
+}
+
 export const userAPI = {
   getProfile: async () => {
     const response = await api.get('/user/profile');
+    return response.data;
+  },
+
+  updateProfile: async (data: UpdateProfilePayload) => {
+    const response = await api.patch('/user/profile', data);
+    return response.data;
+  },
+
+  changePassword: async (currentPassword: string, newPassword: string) => {
+    const response = await api.post('/user/password', { currentPassword, newPassword });
+    return response.data;
+  },
+
+  getSettings: async (): Promise<UserSettings> => {
+    const response = await api.get('/user/settings');
+    return response.data;
+  },
+
+  updateSettings: async (data: Partial<UserSettings>): Promise<UserSettings> => {
+    const response = await api.put('/user/settings', data);
     return response.data;
   },
 

@@ -1,9 +1,148 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { UpdateSettingsDto } from './dto/update-settings.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import * as bcrypt from 'bcrypt';
+
+const DEFAULT_SETTINGS = {
+  notificationsEnabled: true,
+  reminderEnabled: false,
+  reminderTime: '19:00',
+  soundEnabled: true,
+};
 
 @Injectable()
 export class UserService {
   constructor(private prisma: PrismaService) {}
+
+  // ---------- Profile editing ----------
+
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    const data: {
+      username?: string;
+      email?: string | null;
+      avatar?: string | null;
+      tag?: string;
+    } = {};
+
+    if (dto.username !== undefined && dto.username !== user.username) {
+      const taken = await this.prisma.user.findUnique({
+        where: { username: dto.username },
+      });
+      if (taken && taken.id !== userId) {
+        throw new ConflictException('Username is already taken');
+      }
+      data.username = dto.username;
+      // Keep tag in sync with username, preserve existing #suffix when possible
+      const suffix = user.tag.includes('#')
+        ? user.tag.split('#').pop()
+        : Math.floor(1000 + Math.random() * 9000).toString();
+      data.tag = `${dto.username}#${suffix}`;
+    }
+
+    if (dto.email !== undefined && dto.email !== user.email) {
+      if (dto.email) {
+        const taken = await this.prisma.user.findUnique({
+          where: { email: dto.email },
+        });
+        if (taken && taken.id !== userId) {
+          throw new ConflictException('Email is already in use');
+        }
+      }
+      data.email = dto.email || null;
+    }
+
+    if (dto.avatar !== undefined) {
+      data.avatar = dto.avatar || null;
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data,
+      include: { progress: true },
+    });
+
+    return this.sanitizeUser(updated);
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    if (user.isGuest || !user.password) {
+      throw new BadRequestException(
+        'Guest accounts cannot change a password. Please create a full account first.',
+      );
+    }
+
+    const ok = await bcrypt.compare(dto.currentPassword, user.password);
+    if (!ok) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    const hashed = await bcrypt.hash(dto.newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password: hashed },
+    });
+
+    return { success: true };
+  }
+
+  private sanitizeUser(user: any) {
+    if (!user) return user;
+    const { password, ...rest } = user;
+    return rest;
+  }
+
+  // ---------- Settings ----------
+
+  async getSettings(userId: string) {
+    let settings = await this.prisma.userSettings.findUnique({
+      where: { userId },
+    });
+
+    if (!settings) {
+      settings = await this.prisma.userSettings.create({
+        data: { userId, ...DEFAULT_SETTINGS },
+      });
+    }
+
+    return settings;
+  }
+
+  async updateSettings(userId: string, dto: UpdateSettingsDto) {
+    // Ensure record exists, then update
+    await this.getSettings(userId);
+
+    return this.prisma.userSettings.update({
+      where: { userId },
+      data: {
+        ...(dto.notificationsEnabled !== undefined && {
+          notificationsEnabled: dto.notificationsEnabled,
+        }),
+        ...(dto.reminderEnabled !== undefined && {
+          reminderEnabled: dto.reminderEnabled,
+        }),
+        ...(dto.reminderTime !== undefined && {
+          reminderTime: dto.reminderTime,
+        }),
+        ...(dto.soundEnabled !== undefined && {
+          soundEnabled: dto.soundEnabled,
+        }),
+      },
+    });
+  }
 
   async getUserProgress(userId: string) {
     let progress = await this.prisma.userProgress.findUnique({
@@ -111,6 +250,7 @@ export class UserService {
       where: { id: userId },
       include: {
         progress: true,
+        settings: true,
         learnedWords: {
           include: {
             word: true,
@@ -127,7 +267,7 @@ export class UserService {
       throw new NotFoundException('User not found');
     }
 
-    return user;
+    return this.sanitizeUser(user);
   }
 
   async markWordAsLearned(userId: string, wordId: string) {
