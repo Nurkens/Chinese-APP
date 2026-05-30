@@ -10,6 +10,10 @@ import {
   warningOutline,
   menuOutline,
   serverOutline,
+  micOutline,
+  micOffOutline,
+  volumeHighOutline,
+  volumeMuteOutline,
 } from 'ionicons/icons';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
@@ -21,6 +25,43 @@ import {
   ConversationSummary,
 } from '../../services/ai';
 import MiniMarkdown from './MiniMarkdown';
+import { useVoiceChat, VoiceLang } from '../../hooks/useVoiceChat';
+
+const VOICE_PREFS_KEY = 'app:xiaomei-voice-prefs';
+interface VoicePrefs {
+  enabled: boolean;
+  lang: VoiceLang;
+  autoSend: boolean; // auto-send after final transcript
+  chineseOnlyTts: boolean; // speak only Chinese chars (skip pinyin/English)
+  continuous: boolean; // re-arm mic after Xiao Mei finishes speaking
+}
+
+const loadVoicePrefs = (): VoicePrefs => {
+  try {
+    const raw = localStorage.getItem(VOICE_PREFS_KEY);
+    if (raw) {
+      return {
+        enabled: false,
+        lang: 'zh-CN',
+        autoSend: true,
+        chineseOnlyTts: true,
+        continuous: true,
+        ...JSON.parse(raw),
+      };
+    }
+  } catch {
+    /* ignore */
+  }
+  return { enabled: false, lang: 'zh-CN', autoSend: true, chineseOnlyTts: true, continuous: true };
+};
+
+const saveVoicePrefs = (p: VoicePrefs) => {
+  try {
+    localStorage.setItem(VOICE_PREFS_KEY, JSON.stringify(p));
+  } catch {
+    /* ignore */
+  }
+};
 
 interface Props {
   isOpen: boolean;
@@ -54,6 +95,100 @@ const XiaomeiChat: React.FC<Props> = ({ isOpen, onClose }) => {
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // ---------- Voice chat ----------
+  const [voicePrefs, setVoicePrefs] = useState<VoicePrefs>(loadVoicePrefs);
+  const updatePrefs = (patch: Partial<VoicePrefs>) => {
+    setVoicePrefs((prev) => {
+      const next = { ...prev, ...patch };
+      saveVoicePrefs(next);
+      return next;
+    });
+  };
+
+  const voice = useVoiceChat({
+    defaultLang: voicePrefs.lang,
+    chineseOnly: voicePrefs.chineseOnlyTts,
+  });
+
+  // Keep hook's lang in sync with prefs
+  useEffect(() => {
+    if (voice.lang !== voicePrefs.lang) voice.setLang(voicePrefs.lang);
+  }, [voicePrefs.lang, voice]);
+
+  // Auto-send countdown when final transcript arrives in voice mode
+  const autoSendTimerRef = useRef<number | null>(null);
+  const [autoSendIn, setAutoSendIn] = useState(0);
+
+  const cancelAutoSend = useCallback(() => {
+    if (autoSendTimerRef.current !== null) {
+      window.clearInterval(autoSendTimerRef.current);
+      autoSendTimerRef.current = null;
+    }
+    setAutoSendIn(0);
+  }, []);
+
+  // Push final transcript → textarea, optionally schedule auto-send
+  useEffect(() => {
+    if (!voicePrefs.enabled) return;
+    if (!voice.finalText) return;
+    setInput(voice.finalText);
+    voice.resetTranscripts();
+
+    if (voicePrefs.autoSend) {
+      cancelAutoSend();
+      let remaining = 1.5;
+      setAutoSendIn(remaining);
+      autoSendTimerRef.current = window.setInterval(() => {
+        remaining -= 0.1;
+        if (remaining <= 0) {
+          cancelAutoSend();
+          // Send the latest input value
+          setInput((current) => {
+            if (current.trim()) sendMessage(current);
+            return current;
+          });
+        } else {
+          setAutoSendIn(Math.max(0, remaining));
+        }
+      }, 100);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voice.finalText]);
+
+  // Cancel countdown on unmount / mode-off
+  useEffect(() => {
+    if (!voicePrefs.enabled) cancelAutoSend();
+    return cancelAutoSend;
+  }, [voicePrefs.enabled, cancelAutoSend]);
+
+  // Continuous voice loop: when TTS finishes speaking and voice mode is on,
+  // re-arm the mic for the next user turn.
+  const prevVoiceStateRef = useRef(voice.state);
+  useEffect(() => {
+    const prev = prevVoiceStateRef.current;
+    prevVoiceStateRef.current = voice.state;
+    if (
+      voicePrefs.enabled &&
+      voicePrefs.continuous &&
+      prev === 'speaking' &&
+      voice.state === 'idle' &&
+      !streaming
+    ) {
+      // small delay so the mic doesn't pick up the tail of TTS audio
+      const t = window.setTimeout(() => voice.startListening(), 350);
+      return () => window.clearTimeout(t);
+    }
+    return undefined;
+  }, [voice.state, voicePrefs.enabled, voicePrefs.continuous, streaming, voice]);
+
+  // If voice mode is turned off mid-session, cancel any in-flight TTS / mic
+  useEffect(() => {
+    if (!voicePrefs.enabled) {
+      voice.cancelSpeak();
+      voice.stopListening();
+    }
+  }, [voicePrefs.enabled, voice]);
 
   // ---------- Loaders ----------
 
@@ -221,7 +356,7 @@ const XiaomeiChat: React.FC<Props> = ({ isOpen, onClose }) => {
               return copy;
             });
           },
-          onDone: () => {
+          onDone: (full) => {
             setMessages((prev) => {
               const copy = [...prev];
               const last = copy[copy.length - 1];
@@ -233,6 +368,11 @@ const XiaomeiChat: React.FC<Props> = ({ isOpen, onClose }) => {
             setStreaming(false);
             abortRef.current = null;
             refreshConversations();
+
+            // Voice mode: speak the reply, then auto-rearm mic when speaking finishes
+            if (voicePrefs.enabled && voice.ttsSupported && full) {
+              voice.speak(full);
+            }
           },
           onError: (msg) => {
             setMessages((prev) => {
@@ -427,14 +567,38 @@ const XiaomeiChat: React.FC<Props> = ({ isOpen, onClose }) => {
                   : 'New chat with Xiao Mei'}
               </h3>
             </div>
-            <button
-              onClick={onClose}
-              disabled={streaming}
-              className="p-2 rounded-xl hover:bg-stone-700/50 transition-all disabled:opacity-50"
-              aria-label="Close chat"
-            >
-              <IonIcon icon={closeOutline} className="w-6 h-6 text-stone-300" />
-            </button>
+            <div className="flex items-center gap-2">
+              {/* Voice mode toggle */}
+              {(voice.sttSupported || voice.ttsSupported) && (
+                <button
+                  onClick={() => {
+                    const next = !voicePrefs.enabled;
+                    updatePrefs({ enabled: next });
+                    if (!next) {
+                      voice.stopListening();
+                      voice.cancelSpeak();
+                    }
+                  }}
+                  className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    voicePrefs.enabled
+                      ? 'bg-primary/25 text-primary border border-primary/50'
+                      : 'bg-stone-800/60 text-stone-400 border border-stone-700 hover:bg-stone-700/60'
+                  }`}
+                  title="Voice conversation mode"
+                >
+                  <IonIcon icon={micOutline} className="w-4 h-4" />
+                  Voice
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                disabled={streaming}
+                className="p-2 rounded-xl hover:bg-stone-700/50 transition-all disabled:opacity-50"
+                aria-label="Close chat"
+              >
+                <IonIcon icon={closeOutline} className="w-6 h-6 text-stone-300" />
+              </button>
+            </div>
           </header>
 
           {/* Status warnings */}
@@ -559,11 +723,113 @@ const XiaomeiChat: React.FC<Props> = ({ isOpen, onClose }) => {
 
           {/* Composer */}
           <div className="border-t border-stone-700/60 bg-stone-950/60 backdrop-blur-md p-3 sm:p-4">
+            {/* Voice-mode banner: interim transcript / TTS state / countdown */}
+            {voicePrefs.enabled && (
+              <div className="mb-2 flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-stone-900/60 border border-stone-700/60 text-xs">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  {voice.state === 'listening' && (
+                    <>
+                      <span className="flex items-center gap-1.5 text-red-300">
+                        <span className="relative flex w-2 h-2">
+                          <span className="absolute inline-flex w-full h-full rounded-full bg-red-400 opacity-75 animate-ping" />
+                          <span className="relative inline-flex w-2 h-2 rounded-full bg-red-500" />
+                        </span>
+                        Listening…
+                      </span>
+                      {voice.interimText && (
+                        <span className="text-stone-400 italic truncate">"{voice.interimText}"</span>
+                      )}
+                    </>
+                  )}
+                  {voice.state === 'speaking' && (
+                    <span className="flex items-center gap-1.5 text-primary">
+                      <IonIcon icon={volumeHighOutline} className="w-3.5 h-3.5 animate-pulse" />
+                      Xiao Mei is speaking…
+                    </span>
+                  )}
+                  {voice.state === 'denied' && (
+                    <span className="text-red-300">Microphone permission blocked — enable it in your browser.</span>
+                  )}
+                  {voice.state === 'unsupported' && (
+                    <span className="text-stone-500">Voice input not supported in this browser.</span>
+                  )}
+                  {voice.state === 'idle' && autoSendIn > 0 && (
+                    <span className="text-amber-300">
+                      Sending in {autoSendIn.toFixed(1)}s · tap to cancel
+                    </span>
+                  )}
+                  {voice.state === 'idle' && autoSendIn === 0 && !voice.errorMessage && (
+                    <span className="text-stone-500">Tap the mic to talk · Xiao Mei will reply by voice</span>
+                  )}
+                </div>
+
+                {/* Voice controls */}
+                <div className="flex items-center gap-1.5">
+                  {/* Cancel auto-send */}
+                  {autoSendIn > 0 && (
+                    <button
+                      onClick={cancelAutoSend}
+                      className="px-2 py-0.5 rounded text-xs bg-amber-500/20 text-amber-200 hover:bg-amber-500/30"
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  {/* Stop TTS while speaking */}
+                  {voice.state === 'speaking' && (
+                    <button
+                      onClick={voice.cancelSpeak}
+                      className="px-2 py-0.5 rounded text-xs bg-red-500/20 text-red-200 hover:bg-red-500/30 flex items-center gap-1"
+                    >
+                      <IonIcon icon={volumeMuteOutline} className="w-3 h-3" />
+                      Stop
+                    </button>
+                  )}
+                  {/* Language toggle */}
+                  <button
+                    onClick={() =>
+                      updatePrefs({ lang: voicePrefs.lang === 'zh-CN' ? 'en-US' : 'zh-CN' })
+                    }
+                    className="px-2 py-0.5 rounded text-xs bg-stone-800 hover:bg-stone-700 text-stone-300 border border-stone-700"
+                    title="Voice input/output language"
+                  >
+                    {voicePrefs.lang === 'zh-CN' ? '中文' : 'EN'}
+                  </button>
+                  {/* Chinese-only TTS toggle */}
+                  <button
+                    onClick={() => updatePrefs({ chineseOnlyTts: !voicePrefs.chineseOnlyTts })}
+                    className={`px-2 py-0.5 rounded text-xs border transition-all ${
+                      voicePrefs.chineseOnlyTts
+                        ? 'bg-primary/20 border-primary/40 text-primary'
+                        : 'bg-stone-800 border-stone-700 text-stone-400'
+                    }`}
+                    title="Speak only Chinese characters (skip pinyin/English)"
+                  >
+                    汉字 only
+                  </button>
+                  {/* Continuous toggle */}
+                  <button
+                    onClick={() => updatePrefs({ continuous: !voicePrefs.continuous })}
+                    className={`px-2 py-0.5 rounded text-xs border transition-all ${
+                      voicePrefs.continuous
+                        ? 'bg-primary/20 border-primary/40 text-primary'
+                        : 'bg-stone-800 border-stone-700 text-stone-400'
+                    }`}
+                    title="Auto-rearm mic after Xiao Mei finishes speaking"
+                  >
+                    ↻ Auto
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="flex items-end gap-2 bg-stone-900/70 border border-stone-700 focus-within:border-primary/60 rounded-2xl p-2 transition-all">
               <textarea
                 ref={textareaRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  if (autoSendIn > 0) cancelAutoSend();
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
@@ -574,12 +840,43 @@ const XiaomeiChat: React.FC<Props> = ({ isOpen, onClose }) => {
                 placeholder={
                   ollamaDown
                     ? 'Ollama is offline — start it to chat.'
-                    : 'Ask Xiao Mei anything in English or Chinese…'
+                    : voicePrefs.enabled
+                      ? 'Tap the mic, or type here…'
+                      : 'Ask Xiao Mei anything in English or Chinese…'
                 }
                 rows={1}
                 className="flex-1 bg-transparent text-white placeholder:text-stone-500 focus:outline-none resize-none px-2 py-1.5 text-[15px]"
                 style={{ maxHeight: 160 }}
               />
+
+              {/* Mic button — only when voice mode on + STT supported */}
+              {voicePrefs.enabled && voice.sttSupported && !streaming && (
+                <button
+                  onClick={() => {
+                    if (voice.state === 'listening') {
+                      voice.stopListening();
+                    } else {
+                      if (voice.state === 'speaking') voice.cancelSpeak();
+                      cancelAutoSend();
+                      voice.startListening();
+                    }
+                  }}
+                  disabled={!!ollamaDown}
+                  className={`p-2.5 rounded-xl transition-all ${
+                    voice.state === 'listening'
+                      ? 'bg-red-500 hover:bg-red-600 text-white animate-pulse'
+                      : 'bg-stone-800 hover:bg-stone-700 text-primary'
+                  } disabled:opacity-40`}
+                  aria-label={voice.state === 'listening' ? 'Stop listening' : 'Start listening'}
+                  title={voice.state === 'listening' ? 'Stop listening' : 'Start listening'}
+                >
+                  <IonIcon
+                    icon={voice.state === 'listening' ? micOffOutline : micOutline}
+                    className="w-5 h-5"
+                  />
+                </button>
+              )}
+
               {streaming ? (
                 <button
                   onClick={handleStop}
