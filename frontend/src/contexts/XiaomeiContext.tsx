@@ -18,6 +18,8 @@ type MessageType =
 interface XiaomeiContextType {
   currentMessage: string;
   showMessage: (type: MessageType, vars?: Record<string, string | number>) => void;
+  showTutorModal: boolean;
+  setShowTutorModal: (show: boolean) => void;
 }
 
 const XiaomeiContext = createContext<XiaomeiContextType | undefined>(undefined);
@@ -94,6 +96,7 @@ const XIAOMEI_PHRASES: Record<MessageType, string[]> = {
 
 export const XiaomeiProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentMessage, setCurrentMessage] = useState('');
+  const [showTutorModal, setShowTutorModal] = useState(false);
 
   const getRandomPhrase = (phrases: string[]): string => {
     return phrases[Math.floor(Math.random() * phrases.length)];
@@ -116,7 +119,7 @@ export const XiaomeiProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   return (
-    <XiaomeiContext.Provider value={{ currentMessage, showMessage }}>
+    <XiaomeiContext.Provider value={{ currentMessage, showMessage, showTutorModal, setShowTutorModal }}>
       {children}
     </XiaomeiContext.Provider>
   );

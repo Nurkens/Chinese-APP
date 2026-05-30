@@ -13,6 +13,7 @@ import Live2DStage from './Live2DStage';
 import type { DialogueMessage, EmotionType, DynamicBackground } from '../../../types/tutor.types';
 import type { TutorResponse } from '../../../types/tutor.types';
 import { ANIME_THEME } from '../../../types/anime.types';
+import { tutorAPI } from '../../../services/tutorAPI';
 
 interface AITutorProps {
   userId: string;
@@ -74,37 +75,24 @@ const AITutor: React.FC<AITutorProps> = ({
     setIsLoading(true);
 
     try {
-      // TODO: Replace with actual API call
-      // const response = await tutorAPI.chat({ userId, message });
-
-      // Mock response for demonstration
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      const mockResponse: TutorResponse = {
-        id: `tutor-${Date.now()}`,
-        hanzi: '你好',
-        pinyin: 'nǐ hǎo',
-        translation: 'Hello',
-        feedback: 'Great job! You\'re making excellent progress. Let\'s practice some more words!',
-        emotion: 'joy',
-        timestamp: new Date(),
-      };
+      // Call actual backend API
+      const tutorResponse = await tutorAPI.chat(message);
 
       // Create dialogue message from tutor response
       const tutorMessage: DialogueMessage = {
-        id: mockResponse.id,
+        id: `tutor-${Date.now()}`,
         speaker: 'tutor',
-        content: mockResponse.feedback,
-        hanzi: mockResponse.hanzi,
-        pinyin: mockResponse.pinyin,
-        translation: mockResponse.translation,
-        emotion: mockResponse.emotion,
-        timestamp: mockResponse.timestamp,
+        content: tutorResponse.feedback,
+        hanzi: tutorResponse.hanzi,
+        pinyin: tutorResponse.pinyin,
+        translation: tutorResponse.translation,
+        emotion: tutorResponse.emotion,
+        timestamp: new Date(),
       };
 
       setMessages((prev) => [...prev, tutorMessage]);
       setCurrentMessage(tutorMessage);
-      setCurrentEmotion(mockResponse.emotion);
+      setCurrentEmotion(tutorResponse.emotion);
     } catch (error) {
       console.error('Failed to send message:', error);
 
@@ -126,7 +114,9 @@ const AITutor: React.FC<AITutorProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    sendMessage(userInput);
+    if (userInput.trim()) {
+      sendMessage(userInput);
+    }
   };
 
   return (
@@ -249,6 +239,40 @@ const AITutor: React.FC<AITutorProps> = ({
             )}
           </AnimatePresence>
 
+          {/* Messages History - Scrollable */}
+          {messages.length > 1 && (
+            <div
+              style={{
+                maxHeight: '200px',
+                overflowY: 'auto',
+                padding: '12px',
+                background: 'rgba(0, 0, 0, 0.3)',
+                borderRadius: '12px',
+                scrollBehavior: 'smooth',
+              }}
+            >
+              {messages.slice(0, -1).map((msg) => (
+                <div
+                  key={msg.id}
+                  style={{
+                    marginBottom: '12px',
+                    padding: '12px',
+                    background: msg.speaker === 'tutor' ? 'rgba(212, 175, 55, 0.1)' : 'rgba(100, 150, 200, 0.1)',
+                    borderRadius: '8px',
+                    borderLeft: `3px solid ${msg.speaker === 'tutor' ? ANIME_THEME.primary.gold : '#64b3d5'}`,
+                    fontSize: '14px',
+                    color: ANIME_THEME.text.white,
+                  }}
+                >
+                  <div style={{ fontWeight: 'bold', marginBottom: '4px', fontSize: '12px', color: msg.speaker === 'tutor' ? ANIME_THEME.primary.lightGold : '#64b3d5' }}>
+                    {msg.speaker === 'tutor' ? '小美' : 'You'}
+                  </div>
+                  <div>{msg.content.substring(0, 100)}...</div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Input Box */}
           <motion.form
             initial={{ opacity: 0, y: 20 }}
@@ -266,18 +290,27 @@ const AITutor: React.FC<AITutorProps> = ({
               value={userInput}
               onChange={(e) => setUserInput(e.target.value)}
               disabled={isLoading}
-              placeholder="Type your message in Chinese or English..."
+              placeholder="Ask anything in English or Chinese... 🤔"
               style={{
                 flex: 1,
-                padding: '20px 28px',
-                fontSize: '18px',
+                padding: '16px 24px',
+                fontSize: '16px',
                 background: ANIME_THEME.background.card,
                 backdropFilter: 'blur(20px)',
                 border: `2px solid ${ANIME_THEME.primary.gold}`,
-                borderRadius: '16px',
+                borderRadius: '12px',
                 color: ANIME_THEME.text.white,
                 outline: 'none',
-                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3), inset 0 0 10px rgba(255, 215, 0, 0.05)',
+                transition: 'all 0.3s ease',
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = ANIME_THEME.primary.lightGold;
+                e.currentTarget.style.boxShadow = '0 4px 30px rgba(212, 175, 55, 0.4), inset 0 0 10px rgba(255, 215, 0, 0.1)';
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = ANIME_THEME.primary.gold;
+                e.currentTarget.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.3), inset 0 0 10px rgba(255, 215, 0, 0.05)';
               }}
             />
 

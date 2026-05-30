@@ -3,13 +3,22 @@ import { Capacitor } from '@capacitor/core';
 
 
 const getApiUrl = () => {
+  // Сначала проверяем переменную окружения
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // Затем проверяем нативную платформу
   if (Capacitor.isNativePlatform()) {
     return 'http://10.0.2.2:3000';
   }
+  
+  // По умолчанию для разработки
   return 'http://localhost:3000';
 };
 
 const API_BASE_URL = getApiUrl();
+console.log('API URL:', API_BASE_URL);
 
 // Create axios instance with base configuration
 const api = axios.create({
